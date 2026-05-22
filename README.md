@@ -13,12 +13,12 @@ yarn install     # first time only
 yarn run dev     # http://localhost:9000/sandbox
 ```
 
-The sandbox lets you play 3D Go on a configurable cube, in either a stacked 2D "slices" view or an interactive three.js lattice, with tools for section cuts, liberty highlighting, free stone placement, and more.
+The sandbox lets you play 3D Go on a configurable cube, in either a stacked 2D "slices" view or an interactive three.js lattice, with tools for section cuts, liberty highlighting, free stone placement, and Tromp-Taylor scoring (a live mid-game estimate plus final scoring with manual dead-stone marking and a territory overlay).
 
 ## Docs
 
-- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — engine (topology abstraction, `BoardState3D`) and sandbox UI.
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — engine (topology abstraction, `BoardState3D`, `Scorer3D`) and sandbox UI.
 - [docs/ROADMAP.md](./docs/ROADMAP.md) — what's done, what's next, key decisions, open questions.
-- [docs/SCORING_PLAN.md](./docs/SCORING_PLAN.md) — plan for the 3D scoring system.
+- [docs/SCORING_PLAN.md](./docs/SCORING_PLAN.md) — the 3D scoring system (implemented).
 
 Engine code lives in `src/engine/` (entry `src/index.ts`); the sandbox is in `examples/`.

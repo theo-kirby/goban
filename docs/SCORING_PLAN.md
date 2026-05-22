@@ -1,6 +1,6 @@
-# Scoring Plan
+# Scoring
 
-A plan for scoring a finished 3D Go position using **Tromp-Taylor area scoring**. Not yet implemented.
+Scoring a 3D Go position using **Tromp-Taylor area scoring**. Implemented in `src/engine/Scorer3D.ts` and wired into the sandbox; this document is the design and rationale. The implementation also adds a live mid-game estimator that was not in the original plan (see [Live estimator](#live-estimator-influence-heuristic)).
 
 ## Reference implementation
 
@@ -31,30 +31,40 @@ Our existing engine (no suicide, positional superko, 6-neighbor captures) is alr
 
 ## Core scorer (pure Tromp-Taylor)
 
-A `Scorer3D` module (keeps `BoardState3D` lean) implementing exactly autogo's algorithm over `Topology3D`:
+`scoreTrompTaylor` in `Scorer3D.ts` (kept separate so `BoardState3D` stays lean) implements autogo's algorithm over `Topology3D`:
 
 ```
-score(state, { komi, dead?: Set<idx> }) -> ScoreResult
+scoreTrompTaylor(state, { komi?, dead?: Set<idx> }) -> ScoreResult
 ```
 
-1. (Optional) remove `dead` stones from a working copy — see below. Pure TT passes no dead set.
-2. `blackArea = 0; whiteArea = komi`.
-3. Add 1 per stone of each color on the board.
-4. Flood-fill empty regions via `topology.forEachNeighbor`. Track the set of colors bordering each region. If a region borders exactly one color, add its size to that color's area. Otherwise it is neutral.
-5. `result = blackArea − whiteArea` (positive → black wins).
+1. (Optional) treat `dead` stones (flat `topology.idx` indices) as empty for the whole computation — see below. Pure TT passes no dead set.
+2. Count stones of each color.
+3. Flood-fill empty regions via `topology.forEachNeighbor`, tracking the set of colors bordering each region. A region bordering exactly one color is that color's territory; otherwise neutral.
+4. `black.area = blackStones + blackTerritory`; `white.area = whiteStones + whiteTerritory + komi`; `diff = black.area − white.area` (positive → black wins).
 
-```
+The actual `ScoreResult` (shared by both scorers):
+
+```ts
 ScoreResult {
-  black: { stones, territory, area }
-  white: { stones, territory, area }   // area includes komi
+  black: { stones, territory, area }   // area = stones + territory
+  white: { stones, territory, area }   // area also includes komi
   komi: number
-  neutral: number
+  diff: number                         // black.area − white.area
   winner: "black" | "white" | "draw"
-  margin: number                       // |black.area − white.area|
+  margin: number                       // |diff|
+  blackTerritory: Intersection3D[]     // point lists, used for overlays
+  whiteTerritory: Intersection3D[]
+  neutral: Intersection3D[]
 }
 ```
 
 This is small, deterministic, and easy to validate against autogo's output on equivalent 2D positions.
+
+## Live estimator (influence heuristic)
+
+`estimateScoreInfluence(state, { komi })` gives a score for an **unfinished** game, for the sandbox's live "Estimate" mode. A multi-source breadth-first search spreads from every stone of each color through empty space; each empty point is attributed to the color whose nearest stone is closer (equal distance, or unreachable by both, is neutral). All stones count for their color. It returns the same `ScoreResult` shape as the final scorer.
+
+It is crude around life & death (no rollouts, no group-status reasoning) but gives a useful mid-game picture, and on a strictly-enclosed final position it reduces to the Tromp-Taylor result. This was not in the original plan but proved cheap and useful while exploring positions.
 
 ## Dead stones: a convenience on top of TT
 
@@ -79,8 +89,8 @@ Pure TT has no dead stones — you play them out. That is tedious in a sandbox a
 - **Manual** dead-stone marking only.
 - **Komi** uncalibrated.
 
-## Implementation order
+## Implementation status
 
-1. **S1 — `Scorer3D`** (pure TT area scoring over `Topology3D`, optional dead-set removal). Validate against autogo on equivalent 2D positions and by hand on small cubes.
-2. **S2 — Score-mode UI** (mark dead, territory overlay, score panel, komi input).
-3. **S3 — later** assisted life/death (heuristics or AI ownership), seki handling, optional two-pass auto-entry.
+1. **S1 — `Scorer3D`** ✅ done. Pure TT area scoring over `Topology3D` with optional dead-set removal (`scoreTrompTaylor`), plus the live influence estimator (`estimateScoreInfluence`).
+2. **S2 — Score-mode UI** ✅ done. Estimate/Final modes, click-to-mark-dead, territory overlay (slices + lattice), score panel, editable komi input.
+3. **S3 — later** (not started): assisted life/death (heuristics or AI ownership), seki handling, optional two-pass auto-entry. Still gated on the AI work (Phases 4–5).

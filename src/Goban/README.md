@@ -1,6 +1,10 @@
 
 
-This directory contains primarily front end `Goban` functionality. 
+This directory contains the legacy 2D front-end `Goban` functionality, retained
+from upstream. It is **not** used by the 3D sandbox (`examples/`), which renders
+its own SVG slices and a three.js lattice — but it still builds and is the
+reference for how the 2D renderer is structured. The `CanvasRenderer` was
+removed in this fork; only the `SVGRenderer` remains.
 
 The main class here is the `Goban` class, however because there is a lot of
 code and functionality that get's bundled up into a `Goban`, we've broken up
@@ -17,7 +21,6 @@ title: Goban functionality layers
 ---
 classDiagram
     SVGRenderer --|> Goban : Rendering implementation
-    CanvasRenderer --|> Goban: Rendering implementation
     Goban --|> OGSConnectivity : extends
     OGSConnectivity --|> InteractiveBase: extends
     InteractiveBase --|> GobanBase: extends
@@ -25,9 +28,6 @@ classDiagram
     
 
     class SVGRenderer {
-        Final rendering functionality
-    }
-    class CanvasRenderer {
         Final rendering functionality
     }
 
