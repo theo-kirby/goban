@@ -64,6 +64,9 @@ lib/
 node/
 build/
 doc/
-docs/
 deployment-staging-area/
 archive/
+
+# Editor / agent state
+.claude/
+.vscode/

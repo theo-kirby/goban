@@ -30,7 +30,6 @@ import {
     sortMoves,
 } from "./util";
 import { RawStoneString } from "./StoneString";
-import { ScoreEstimator } from "./ScoreEstimator";
 import { GobanBase, GobanEvents } from "../GobanBase";
 import {
     JGOFTimeControl,
@@ -43,7 +42,8 @@ import {
 import { AdHocPackedMove, AdHocPauseControl } from "./formats/AdHocFormat";
 import { _ } from "./translate";
 import { EventEmitter } from "eventemitter3";
-import { GameClock, StallingScoreEstimate } from "./protocol";
+type GameClock = any;
+type StallingScoreEstimate = any;
 import * as goscorer from "goscorer";
 
 declare const CLIENT: boolean;
@@ -2767,28 +2767,6 @@ export class GobanEngine extends BoardState {
                 self.jumpTo(farthest_move);
             }
         };
-    }
-    public estimateScore(
-        trials: number,
-        tolerance: number,
-        prefer_remote: boolean = false,
-        should_autoscore: boolean = false,
-    ): ScoreEstimator {
-        // When estimating score, we should start with a clean removal state
-        // to avoid inheriting potentially incorrect removal markings from
-        // the game's stone removal phase
-        const clean_removal = makeMatrix(this.width, this.height, false);
-
-        const se = new ScoreEstimator(
-            this,
-            this.goban_callback,
-            trials,
-            tolerance,
-            prefer_remote,
-            should_autoscore,
-            clean_removal,
-        );
-        return se.score();
     }
     /* Returns the move by location if it exists within our current branch. If
      * include_forward_search is true, we also search forward in the tree along

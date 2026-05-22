@@ -179,12 +179,10 @@ export abstract class Goban extends OGSConnectivity {
         if (callbacks.getSelectedThemes) {
             return callbacks.getSelectedThemes();
         }
-        //return {white:'Plain', black:'Plain', board:'Plain'};
-        //return {white:'Plain', black:'Plain', board:'Kaya'};
         return {
-            "white": "Shell",
-            "black": "Slate",
-            "board": "Kaya",
+            "white": "Plain",
+            "black": "Plain",
+            "board": "Plain",
             "removal-graphic": "square",
             "removal-scale": 1.0,
             "stone-shadows": "default",

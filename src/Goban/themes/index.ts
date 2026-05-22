@@ -42,16 +42,10 @@ export const THEMES_SORTED: {
 } = { white: [], black: [], board: [] };
 
 import init_board_plain from "./board_plain";
-import init_board_woods from "./board_woods";
 import init_plain_stones from "./plain_stones";
-import init_rendered from "./rendered_stones";
-import init_image_stones from "./image_stones";
 
 init_board_plain(THEMES);
-init_board_woods(THEMES);
 init_plain_stones(THEMES);
-init_rendered(THEMES);
-init_image_stones(THEMES);
 
 function theme_sort(a: GobanTheme, b: GobanTheme) {
     return a.sort() - b.sort();

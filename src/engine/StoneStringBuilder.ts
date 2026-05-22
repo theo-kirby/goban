@@ -32,6 +32,7 @@ export class StoneStringBuilder {
         this.stone_string_id_map = group_id_map;
         this.stone_strings = stone_strings;
 
+        const topology = state.topology;
         const floodFill = (
             x: number,
             y: number,
@@ -39,22 +40,17 @@ export class StoneStringBuilder {
             dame: boolean,
             id: number,
         ): void => {
-            if (x >= 0 && x < this.state.width) {
-                if (y >= 0 && y < this.state.height) {
-                    if (
-                        this.state.board[y][x] === color &&
-                        group_id_map[y][x] === 0 &&
-                        (!original_board ||
-                            (!dame && (original_board[y][x] !== 0 || !this.state.removal[y][x])) ||
-                            (dame && original_board[y][x] === 0 && this.state.removal[y][x]))
-                    ) {
-                        group_id_map[y][x] = id;
-                        floodFill(x - 1, y, color, dame, id);
-                        floodFill(x + 1, y, color, dame, id);
-                        floodFill(x, y - 1, color, dame, id);
-                        floodFill(x, y + 1, color, dame, id);
-                    }
-                }
+            if (
+                this.state.board[y][x] === color &&
+                group_id_map[y][x] === 0 &&
+                (!original_board ||
+                    (!dame && (original_board[y][x] !== 0 || !this.state.removal[y][x])) ||
+                    (dame && original_board[y][x] === 0 && this.state.removal[y][x]))
+            ) {
+                group_id_map[y][x] = id;
+                topology.forEachNeighbor(x, y, 0, (nx, ny, _nz) => {
+                    floodFill(nx, ny, color, dame, id);
+                });
             }
         };
 
@@ -86,20 +82,11 @@ export class StoneStringBuilder {
         /* Compute group neighbors */
         this.foreachGroup((gr) => {
             gr.map((pt) => {
-                const x = pt.x;
-                const y = pt.y;
-                if (x - 1 >= 0 && group_id_map[y][x - 1] !== gr.id) {
-                    gr._addNeighborGroup(stone_strings[group_id_map[y][x - 1]]);
-                }
-                if (x + 1 < this.state.width && group_id_map[y][x + 1] !== gr.id) {
-                    gr._addNeighborGroup(stone_strings[group_id_map[y][x + 1]]);
-                }
-                if (y - 1 >= 0 && group_id_map[y - 1][x] !== gr.id) {
-                    gr._addNeighborGroup(stone_strings[group_id_map[y - 1][x]]);
-                }
-                if (y + 1 < this.state.height && group_id_map[y + 1][x] !== gr.id) {
-                    gr._addNeighborGroup(stone_strings[group_id_map[y + 1][x]]);
-                }
+                topology.forEachNeighbor(pt.x, pt.y, 0, (nx, ny, _nz) => {
+                    if (group_id_map[ny][nx] !== gr.id) {
+                        gr._addNeighborGroup(stone_strings[group_id_map[ny][nx]]);
+                    }
+                });
             });
         });
 

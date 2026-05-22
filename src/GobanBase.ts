@@ -24,7 +24,6 @@ import {
     PuzzlePlacementSetting,
 } from "./engine";
 import { MoveTree, MoveTreePenMarks } from "./engine/MoveTree";
-import { ScoreEstimator } from "./engine/ScoreEstimator";
 import { setGobanTranslations } from "./engine/translate";
 import {
     JGOFClock,
@@ -39,8 +38,6 @@ import {
 } from "./engine/formats/JGOF";
 import { AdHocPackedMove } from "./engine/formats/AdHocFormat";
 import { MessageID } from "./engine/messages";
-import type { IGobanSocket } from "./engine/GobanSocket";
-import type { ServerToClient, GameChatLine } from "./engine/protocol";
 import { EventEmitter } from "eventemitter3";
 import { setGobanCallbacks } from "./Goban/callbacks";
 
@@ -64,7 +61,7 @@ export interface GobanBounds {
     bottom: number;
 }
 
-export type GobanChatLog = Array<GameChatLine>;
+export type GobanChatLog = Array<any>;
 
 export interface GobanConfig extends GobanEngineConfig, PuzzleConfig {
     board_div?: HTMLElement;
@@ -127,7 +124,7 @@ export interface GobanConfig extends GobanEngineConfig, PuzzleConfig {
 
     // deprecated
     username?: string;
-    server_socket?: IGobanSocket;
+    server_socket?: any;
     connect_to_chat?: number | boolean;
 }
 
@@ -168,7 +165,7 @@ export interface StateUpdateEvents {
     submit_move: (d: (() => void) | undefined) => void;
     analyze_tool: (d: AnalysisTool) => void;
     analyze_subtool: (d: AnalysisSubTool) => void;
-    score_estimate: (d: ScoreEstimator | null) => void;
+    score_estimate: (d: any) => void;
     strict_seki_mode: (d: boolean) => void;
     rules: (d: GobanEngineRules) => void;
     winner: (d: number | undefined) => void;
@@ -180,7 +177,7 @@ export interface StateUpdateEvents {
     outcome: (d: string) => void;
     review_owner_id: (d: number | undefined) => void;
     review_controller_id: (d: number | undefined) => void;
-    stalling_score_estimate: ServerToClient["game/:id/stalling_score_estimate"];
+    stalling_score_estimate: (d: any) => void;
 }
 
 export interface GobanEvents extends StateUpdateEvents {

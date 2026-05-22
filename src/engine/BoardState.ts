@@ -24,6 +24,7 @@ import type { GobanBase } from "../GobanBase";
 import { RawStoneString } from "./StoneString";
 import { cloneMatrix, matricesAreEqual } from "./util";
 import { callbacks } from "../Goban/callbacks";
+import { Topology, Topology2D } from "./Topology";
 
 export interface BoardConfig {
     width?: number;
@@ -59,6 +60,7 @@ export class BoardState extends EventEmitter<GobanEvents> implements BoardConfig
     public readonly height: number = 19;
     //public readonly rules:GobanEngineRules = 'japanese';
     public readonly width: number = 19;
+    public readonly topology: Topology;
     public board: JGOFNumericPlayerColor[][];
     public removal: boolean[][];
     protected goban_callback?: GobanBase;
@@ -82,6 +84,7 @@ export class BoardState extends EventEmitter<GobanEvents> implements BoardConfig
         this.goban_callback = goban_callback;
         this.width = config.width ?? config.board?.[0]?.length ?? 19;
         this.height = config.height ?? config.board?.length ?? 19;
+        this.topology = new Topology2D(this.width, this.height);
 
         /* Clone our boards if they are provided, otherwise make new ones */
         this.board = config.board
@@ -281,10 +284,11 @@ export class BoardState extends EventEmitter<GobanEvents> implements BoardConfig
             x = toCheckX.pop() || 0;
             y = toCheckY.pop() || 0;
 
-            if (__flood_fill_scratch_pad[y * this.width + x] === __current_flood_fill_value) {
+            const scratch_idx = this.topology.idx(x, y, 0);
+            if (__flood_fill_scratch_pad[scratch_idx] === __current_flood_fill_value) {
                 continue;
             }
-            __flood_fill_scratch_pad[y * this.width + x] = __current_flood_fill_value;
+            __flood_fill_scratch_pad[scratch_idx] = __current_flood_fill_value;
 
             if (this.board[y][x] === color) {
                 const pt = { x: x, y: y };
@@ -302,7 +306,7 @@ export class BoardState extends EventEmitter<GobanEvents> implements BoardConfig
 
     private _floodFillMarkFilled(group: RawStoneString): void {
         for (let i = 0; i < group.length; ++i) {
-            __flood_fill_scratch_pad[group[i].y * this.width + group[i].x] =
+            __flood_fill_scratch_pad[this.topology.idx(group[i].x, group[i].y, 0)] =
                 __current_flood_fill_value;
         }
     }
@@ -352,16 +356,17 @@ export class BoardState extends EventEmitter<GobanEvents> implements BoardConfig
         pt_or_raw_stone_string: JGOFIntersection | RawStoneString,
         callback: (x: number, y: number) => void,
     ): void {
+        const topology = this.topology;
         if (pt_or_raw_stone_string instanceof Array) {
             const group = pt_or_raw_stone_string;
-            const callback_done = new Array(this.height * this.width);
+            const callback_done = new Array(topology.numPoints);
             for (let i = 0; i < group.length; ++i) {
-                callback_done[group[i].x + group[i].y * this.width] = true;
+                callback_done[topology.idx(group[i].x, group[i].y, 0)] = true;
             }
 
             /* We only want to call the callback once per point */
-            const callback_one_time = (x: number, y: number) => {
-                const idx = x + y * this.width;
+            const callback_one_time = (x: number, y: number, _z: number) => {
+                const idx = topology.idx(x, y, 0);
                 if (callback_done[idx]) {
                     return;
                 }
@@ -371,33 +376,11 @@ export class BoardState extends EventEmitter<GobanEvents> implements BoardConfig
 
             for (let i = 0; i < group.length; ++i) {
                 const pt = group[i];
-                if (pt.x - 1 >= 0) {
-                    callback_one_time(pt.x - 1, pt.y);
-                }
-                if (pt.x + 1 !== this.width) {
-                    callback_one_time(pt.x + 1, pt.y);
-                }
-                if (pt.y - 1 >= 0) {
-                    callback_one_time(pt.x, pt.y - 1);
-                }
-                if (pt.y + 1 !== this.height) {
-                    callback_one_time(pt.x, pt.y + 1);
-                }
+                topology.forEachNeighbor(pt.x, pt.y, 0, callback_one_time);
             }
         } else {
             const pt = pt_or_raw_stone_string;
-            if (pt.x - 1 >= 0) {
-                callback(pt.x - 1, pt.y);
-            }
-            if (pt.x + 1 !== this.width) {
-                callback(pt.x + 1, pt.y);
-            }
-            if (pt.y - 1 >= 0) {
-                callback(pt.x, pt.y - 1);
-            }
-            if (pt.y + 1 !== this.height) {
-                callback(pt.x, pt.y + 1);
-            }
+            topology.forEachNeighbor(pt.x, pt.y, 0, (nx, ny, _nz) => callback(nx, ny));
         }
     }
 

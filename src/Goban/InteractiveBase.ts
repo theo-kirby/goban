@@ -17,7 +17,6 @@
 import {
     GobanEngine,
     GobanEnginePhase,
-    ReviewMessage,
     PuzzlePlacementSetting,
     Score,
     ConditionalMoveTree,
@@ -25,13 +24,15 @@ import {
 } from "../engine";
 import { NumberMatrix, encodeMove, makeMatrix, makeEmptyMatrix } from "../engine/util";
 import { MoveTree, MarkInterface } from "../engine/MoveTree";
-import { ScoreEstimator } from "../engine/ScoreEstimator";
 import { computeAverageMoveTime, niceInterval, matricesAreEqual } from "../engine/util";
 import { _ } from "../engine/translate";
 import { JGOFIntersection, JGOFPlayerClock, JGOFNumericPlayerColor } from "../engine/formats/JGOF";
 import { AdHocClock, AdHocPauseControl } from "../engine/formats/AdHocFormat";
-import { StallingScoreEstimate } from "../engine/protocol";
 import { callbacks } from "./callbacks";
+
+type ReviewMessage = any;
+type StallingScoreEstimate = any;
+type ScoreEstimator = any;
 import {
     GobanBase,
     AnalysisTool,
@@ -1721,13 +1722,9 @@ export abstract class GobanInteractive extends GobanBase {
             this.showMessage("processing", undefined, -1);
             this.setMode("score estimation", true);
             this.clearMessage();
-            const should_autoscore = false;
-            this.score_estimator = this.engine.estimateScore(
-                SCORE_ESTIMATION_TRIALS,
-                SCORE_ESTIMATION_TOLERANCE,
-                prefer_remote,
-                should_autoscore,
-            );
+            void prefer_remote;
+            void SCORE_ESTIMATION_TRIALS;
+            void SCORE_ESTIMATION_TOLERANCE;
             this.enableStonePlacement();
             this.redraw(true);
             this.emit("update");

@@ -1,79 +1,24 @@
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/online-go/goban)
 
-# Usage:
+# 3D Go
 
-To import into an application targeting the web:
+A research project exploring **3D Go** — Go played on an N×N×N lattice instead of a 2D grid. The rules are unchanged from standard Go; only the topology differs (an interior intersection has 6 liberties instead of 4). Goals: a correct engine, a human-playable UX for the hard-to-perceive lattice, and eventually a self-play AI.
 
-```
-import { ... } from "goban";
-```
+Built on a stripped fork of [online-go/goban](https://github.com/online-go/goban). Removed from upstream: OGS networking + protocol, Canvas renderer, score estimator/autoscore, AI review, chat, all stone/board themes except `Plain`, the standalone engine-only build, tests, typedoc, cspell, jscpd, husky. The 2D engine and SVG renderer remain (the 3D engine is built parallel to them).
 
-To import into an application targeting node, use the [goban-engine](https://www.npmjs.com/package/goban-engine) package:
+## Run
 
 ```
-import { ... } from "goban-engine";
+yarn install     # first time only
+yarn run dev     # http://localhost:9000/sandbox
 ```
 
-# Documentation
+The sandbox lets you play 3D Go on a configurable cube, in either a stacked 2D "slices" view or an interactive three.js lattice, with tools for section cuts, liberty highlighting, free stone placement, and more.
 
-https://docs.online-go.com/goban/
+## Docs
 
-# Dev setup
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — engine (topology abstraction, `BoardState3D`) and sandbox UI.
+- [docs/ROADMAP.md](./docs/ROADMAP.md) — what's done, what's next, key decisions, open questions.
+- [docs/SCORING_PLAN.md](./docs/SCORING_PLAN.md) — plan for the 3D scoring system.
 
-## 1. Building `goban`
-
-If you have `make` installed you can simply run
-
-```
-make
-```
-
-Or, you can build and run manually using
-
-```
-yarn install
-yarn run dev
-```
-
-(`yarn install` is only necessary the first time you start working on the project,
-or whenever dependencies are updated)
-
-## 2. Using local fork of `goban` while working on online-go.com
-
-The online-go.com repo uses a goban submodule (in `submodules/goban`). To configure this to use your fork/branch, you can do the following from within your online-go.com repo clone root:
-```
-cd submodules/goban
-git remote add myFork https://github.com/<your_username>/goban.git
-git fetch myFork
-git checkout -b <local_branch_name> myFork/<remote_branch_name>
-```
-
-Once done, your online-go.com development environment will use your goban fork's `goban` code.
-
-To reset the submodule, run from online-go.com repo clone root:
-```
-git submodule update --force --checkout submodules/goban
-```
-
-# Before PR
-
-Be ready for CI check on PR:
-
--   run tests `npm test`
--   run prettify `npm run prettier`
-
-[Optional] You can also set up a pre-commit to run checks locally before you commit:
-
-```
-npx husky install
-```
-
-# Running & Writing tests
-
-Tests live in `src/__tests__` directory, check it out & add Your own!
-To run tests:
-
-```
-npm test
-```
+Engine code lives in `src/engine/` (entry `src/index.ts`); the sandbox is in `examples/`.

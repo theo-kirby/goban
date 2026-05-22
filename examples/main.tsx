@@ -17,822 +17,826 @@
 import * as React from "react";
 import * as ReactDOM from "react-dom/client";
 import {
-    Route,
-    Routes,
-    BrowserRouter,
-    Link,
-    //Navigate,
-    //useNavigate,
-} from "react-router-dom";
-
-import { EventEmitter } from "eventemitter3";
-import {
-    GobanConfig,
-    ColoredCircle,
-    GobanCanvas,
-    CanvasRendererGobanConfig,
-    SVGRenderer,
-    SVGRendererGobanConfig,
-    THEMES,
-    Goban,
+    BoardState3D,
+    Intersection3D,
+    JGOFNumericPlayerColor,
+    scoreTrompTaylor,
+    estimateScoreInfluence,
+    ScoreResult,
 } from "../src";
+import { createLatticeApp, LatticeApp, LineMode } from "./lattice3d";
 
-import { MoveTreePenMarks } from "../src/engine/MoveTree";
+const CUBE_SIZES = [3, 4, 5, 7, 9] as const;
+type CubeSize = (typeof CUBE_SIZES)[number];
+type View3D = "slices" | "lattice";
+type Phase = "setup" | "playing";
+type LibMode = "off" | "group" | "black" | "white";
+type PlaceMode = "alternate" | "black" | "white";
+type ScoreMode = "off" | "estimate" | "final";
 
-let stored_config: GobanConfig = {};
-try {
-    stored_config = JSON.parse(localStorage.getItem("config") || "{}");
-} catch (e) {}
+const EMPTY_DEAD: Set<number> = new Set();
 
-Goban.setCallbacks({
-    getSelectedThemes: () => ({
-        "board": "Kaya",
-        //"board": "Anime",
+const LIB_MODES: { mode: LibMode; label: string }[] = [
+    { mode: "off", label: "Off" },
+    { mode: "group", label: "Group" },
+    { mode: "black", label: "Black" },
+    { mode: "white", label: "White" },
+];
 
-        "white": "Plain",
-        "black": "Plain",
-        //white: "Glass",
-        //black: "Glass",
-        //white: "Worn Glass",
-        //black: "Worn Glass",
-        //white: "Night",
-        //black: "Night",
-        //white: "Shell",
-        //black: "Slate",
-        //white: "Anime",
-        //black: "Anime",
-        //white: "Custom",
-        //black: "Custom",
-        "removal-graphic": "square",
-        "removal-scale": 1.0,
-    }),
+const PLACE_MODES: { mode: PlaceMode; label: string }[] = [
+    { mode: "alternate", label: "Alternate" },
+    { mode: "black", label: "Black" },
+    { mode: "white", label: "White" },
+];
 
-    customWhiteStoneUrl: () => {
-        return "https://cdn.online-go.com/goban/anime_white.svg";
-    },
-    customBlackStoneUrl: () => {
-        return "https://cdn.online-go.com/goban/anime_black.svg";
-    },
-});
+const LINE_MODES: { mode: LineMode; label: string }[] = [
+    { mode: "all", label: "All" },
+    { mode: "horizontal", label: "Horiz" },
+    { mode: "vertical", label: "Vert" },
+    { mode: "none", label: "None" },
+];
 
-const base_config: GobanConfig = Object.assign(
-    {
-        interactive: true,
-        mode: "puzzle",
-        //"player_id": 0,
-        //"server_socket": null,
-        square_size: 25,
-        original_sgf: `
-        (;FF[4]
-        CA[UTF-8]
-        GM[1]
-        GN[ai japanese hc 9]
-        PC[https://online-go.com/review/290167]
-        PB[Black]
-        PW[White]
-        BR[3p]
-        WR[3p]
-        TM[0]OT[0 none]
-        RE[?]
-        SZ[19]
-        KM[6.5]
-        RU[Japanese]
+const libKey = (p: Intersection3D): string => `${p.x},${p.y},${p.z}`;
 
-        ;B[sh]
-        ;W[sk]
-        ;B[sn]
-        ;W[sp]
-        )
-    `,
-        draw_top_labels: true,
-        draw_left_labels: true,
-        draw_right_labels: true,
-        draw_bottom_labels: true,
-        bounds: {
-            left: 0,
-            right: 18,
-            top: 0,
-            bottom: 18,
-        },
-    },
-    stored_config,
-);
+/* Fixed area the slice boards live in (px). Never changes; the boards scale
+ * to fill it as large as possible regardless of how many are shown. */
+const PANEL_AREA_W = 600;
+const PANEL_AREA_H = 560;
+const PANEL_GAP = 10;
+const PANEL_LABEL_H = 18;
+/* Padding around the grid, as a fraction of cell size. With 0.5 the board's
+ * pixel side is exactly cell * boardDimension. */
+const SLICE_PAD_FRAC = 0.5;
 
-Goban.setCallbacks({
-    //getCoordinateDisplaySystem: () => "1-1",
-    getCoordinateDisplaySystem: () => "A1",
-    getCDNReleaseBase: () => "",
-});
-
-function save() {
-    localStorage.setItem("config", JSON.stringify(base_config));
+/* Choose the column count (and resulting cell size) that fits `n` square
+ * boards of grid dimension `s` into the fixed area as large as possible. */
+function bestSliceLayout(n: number, s: number): { cell: number; cols: number } {
+    let best = { cell: 1, cols: 1 };
+    for (let cols = 1; cols <= Math.max(1, n); ++cols) {
+        const rows = Math.ceil(n / cols);
+        const availW = (PANEL_AREA_W - PANEL_GAP * (cols - 1)) / cols;
+        const availH = (PANEL_AREA_H - PANEL_GAP * (rows - 1)) / rows;
+        const cellW = availW / s;
+        const cellH = (availH - PANEL_LABEL_H) / s;
+        const cell = Math.floor(Math.min(cellW, cellH));
+        if (cell > best.cell) {
+            best = { cell, cols };
+        }
+    }
+    return best;
 }
 
-function clear() {
-    localStorage.remove("config");
-}
-(window as any)["clear"] = clear;
-/*
-            "getPuzzlePlacementSetting": () => {
-                return {"mode": "play"};
-            },
-            */
-
-const fiddler = new EventEmitter();
-
-function GobanTestPage(): React.JSX.Element {
-    const [_update, _setUpdate] = React.useState(1);
-    const [svg_or_canvas, setSVGOrCanvas] = React.useState("svg");
-    function forceUpdate() {
-        _setUpdate(_update + 1);
-    }
-    function redraw() {
-        save();
-        forceUpdate();
-        fiddler.emit("redraw");
-    }
+function Sandbox(): React.JSX.Element {
+    const [phase, setPhase] = React.useState<Phase>("setup");
+    const [size, setSize] = React.useState<CubeSize>(5);
 
     return (
-        <div>
-            <div>
-                <div className="inline-block">
-                    <div className="setting">
-                        {svg_or_canvas} mode:{" "}
-                        <button
-                            onClick={() => {
-                                setSVGOrCanvas(svg_or_canvas === "svg" ? "canvas" : "svg");
-                                forceUpdate();
-                            }}
-                        >{`Switch to ${svg_or_canvas === "svg" ? "Canvas" : "SVG"}`}</button>
-                    </div>
-
-                    <div className="setting">
-                        <span>Square size:</span>
-                        <input
-                            type="range"
-                            value={base_config.square_size as number}
-                            onChange={(ev) => {
-                                let ss = Math.max(1, parseInt(ev.target.value));
-                                //console.log(ss);
-                                if (!ss) {
-                                    ss = 1;
-                                }
-                                base_config.square_size = ss;
-                                forceUpdate();
-                                fiddler.emit("setSquareSize", ss);
-                            }}
-                        />
-                    </div>
-
-                    <div className="setting">
-                        <span>Stone font scale:</span>
-                        <input
-                            type="range"
-                            value={base_config.stone_font_scale as number}
-                            min="0.1"
-                            max="2"
-                            step="0.1"
-                            onChange={(ev) => {
-                                let ss = parseFloat(ev.target.value);
-                                if (!ss) {
-                                    ss = 1;
-                                }
-                                base_config.stone_font_scale = ss;
-                                forceUpdate();
-                                fiddler.emit("setStoneFontScale", ss);
-                            }}
-                        />
-                    </div>
-
-                    <div className="setting">
-                        <span>Top labels:</span>
-                        <input
-                            type="checkbox"
-                            checked={base_config.draw_top_labels}
-                            onChange={(ev) => {
-                                base_config.draw_top_labels = ev.target.checked;
-                                redraw();
-                            }}
-                        />
-                    </div>
-
-                    <div className="setting">
-                        <span>Left labels:</span>
-                        <input
-                            type="checkbox"
-                            checked={base_config.draw_left_labels}
-                            onChange={(ev) => {
-                                base_config.draw_left_labels = ev.target.checked;
-                                redraw();
-                            }}
-                        />
-                    </div>
-                    <div className="setting">
-                        <span>Right labels:</span>
-                        <input
-                            type="checkbox"
-                            checked={base_config.draw_right_labels}
-                            onChange={(ev) => {
-                                base_config.draw_right_labels = ev.target.checked;
-                                redraw();
-                            }}
-                        />
-                    </div>
-                    <div className="setting">
-                        <span>Bottom labels:</span>
-                        <input
-                            type="checkbox"
-                            checked={base_config.draw_bottom_labels}
-                            onChange={(ev) => {
-                                base_config.draw_bottom_labels = ev.target.checked;
-                                redraw();
-                            }}
-                        />
-                    </div>
-                </div>
-                <div className="inline-block">
-                    <div className="setting">
-                        <span>Top bounds:</span>
-                        <input
-                            type="range"
-                            min="0"
-                            max="18"
-                            step="1"
-                            value={base_config.bounds?.top}
-                            onChange={(ev) => {
-                                if (base_config.bounds) {
-                                    base_config.bounds.top = parseInt(ev.target.value);
-                                }
-                                redraw();
-                            }}
-                        />
-                    </div>
-                    <div className="setting">
-                        <span>Left bounds:</span>
-                        <input
-                            type="range"
-                            min="0"
-                            max="18"
-                            step="1"
-                            value={base_config.bounds?.left}
-                            onChange={(ev) => {
-                                if (base_config.bounds) {
-                                    base_config.bounds.left = parseInt(ev.target.value);
-                                }
-                                redraw();
-                            }}
-                        />
-                    </div>
-                    <div className="setting">
-                        <span>Right bounds:</span>
-                        <input
-                            type="range"
-                            min="0"
-                            max="18"
-                            step="1"
-                            value={base_config.bounds?.right}
-                            onChange={(ev) => {
-                                if (base_config.bounds) {
-                                    base_config.bounds.right = parseInt(ev.target.value);
-                                }
-                                redraw();
-                            }}
-                        />
-                    </div>
-                    <div className="setting">
-                        <span>Bottom bounds:</span>
-                        <input
-                            type="range"
-                            min="0"
-                            max="18"
-                            step="1"
-                            value={base_config.bounds?.bottom}
-                            onChange={(ev) => {
-                                if (base_config.bounds) {
-                                    base_config.bounds.bottom = parseInt(ev.target.value);
-                                }
-                                redraw();
-                            }}
-                        />
-                    </div>
-                </div>
-            </div>
-
-            {/*false && <ReactGobanPixi /> */}
-            {Array.from(
-                Array(
-                    // 20
-                    0,
-                ),
-            ).map((_, idx) =>
-                svg_or_canvas === "svg" ? (
-                    <ReactGobanSVG key={idx} />
-                ) : (
-                    <ReactGobanCanvas key={idx} />
-                ),
+        <div className="Sandbox">
+            {phase === "setup" ? (
+                <StartScreen size={size} onPick={setSize} onStart={() => setPhase("playing")} />
+            ) : (
+                <Game key={size} size={size} onNewGame={() => setPhase("setup")} />
             )}
-            {svg_or_canvas === "svg" ? <ReactGobanSVG /> : <ReactGobanCanvas />}
         </div>
     );
 }
 
-interface ReactGobanProps {}
-
-function ReactGoban<GobanClass extends Goban>(
-    ctor: { new (x: CanvasRendererGobanConfig | SVGRendererGobanConfig): GobanClass },
-    props: ReactGobanProps,
-): React.JSX.Element {
-    const [elapsed, setElapsed] = React.useState(0);
-    const container = React.useRef(null);
-    const move_tree_container = React.useRef(null);
-    let goban: Goban;
-
-    React.useEffect(() => {
-        const config: CanvasRendererGobanConfig | SVGRendererGobanConfig = Object.assign(
-            {},
-            base_config,
-            {
-                board_div: container.current || undefined,
-                move_tree_container: move_tree_container.current || undefined,
-            },
-        );
-
-        goban = new ctor(config);
-
-        goban.showMessage("loading", { foo: "bar" }, 1000);
-
-        const heatmap: number[][] = [];
-        for (let i = 0; i < 19; i++) {
-            heatmap[i] = [];
-            for (let j = 0; j < 19; j++) {
-                heatmap[i][j] = 0.0;
-            }
-        }
-
-        fiddler.on("setSquareSize", (ss) => {
-            const start = Date.now();
-            goban.setSquareSize(ss);
-            const end = Date.now();
-            console.log("SSS time: ", end - start);
-        });
-
-        fiddler.on("setStoneFontScale", (ss) => {
-            const start = Date.now();
-            goban.setStoneFontScale(ss);
-            const end = Date.now();
-            console.log("SFS time: ", end - start);
-        });
-
-        fiddler.on("redraw", () => {
-            const start = Date.now();
-            goban.draw_top_labels = !!base_config.draw_top_labels;
-            goban.draw_left_labels = !!base_config.draw_left_labels;
-            goban.draw_right_labels = !!base_config.draw_right_labels;
-            goban.draw_bottom_labels = !!base_config.draw_bottom_labels;
-            goban.config.draw_top_labels = !!base_config.draw_top_labels;
-            goban.config.draw_left_labels = !!base_config.draw_left_labels;
-            goban.config.draw_right_labels = !!base_config.draw_right_labels;
-            goban.config.draw_bottom_labels = !!base_config.draw_bottom_labels;
-            if (base_config.bounds) {
-                goban.setBounds(base_config.bounds);
-            }
-            goban.redraw(true);
-            const end = Date.now();
-            console.log("Redraw time: ", end - start);
-        });
-
-        let i = 0;
-        const start = Date.now();
-        const NUM_MOVES = 300;
-        // const NUM_MOVES = 20;
-        const interval = setInterval(() => {
-            i++;
-            if (i >= NUM_MOVES) {
-                if (i === NUM_MOVES) {
-                    const end = Date.now();
-                    console.log("Done in ", end - start);
-                    setElapsed(end - start);
-
-                    // setup iso branch
-                    const cur = goban.engine.cur_move;
-                    goban.engine.place(18, 16);
-                    goban.engine.place(18, 17);
-                    goban.engine.place(17, 16);
-                    goban.engine.place(17, 17);
-
-                    goban.engine.place(18, 2);
-                    goban.engine.place(18, 1);
-
-                    goban.engine.jumpTo(cur);
-                    goban.engine.place(17, 16);
-                    goban.engine.place(17, 17);
-                    goban.engine.place(18, 16);
-                    goban.engine.place(18, 17);
-
-                    goban.engine.place(18, 1);
-                    goban.engine.place(18, 2);
-
-                    /* test stuff for various features */
-                    {
-                        heatmap[18][18] = 1.0;
-                        heatmap[18][17] = 0.5;
-                        heatmap[18][16] = 0.1;
-                        goban.setHeatmap(heatmap, true);
-
-                        // blue move
-                        const circle: ColoredCircle = {
-                            //move: branch.moves[0],
-                            move: { x: 16, y: 17 },
-                            color: "rgba(0,0,0,0)",
-                        };
-                        const circle2: ColoredCircle = {
-                            //move: branch.moves[0],
-                            move: { x: 17, y: 17 },
-                            color: "rgba(0,0,0,0)",
-                        };
-
-                        goban.setMark(16, 17, "blue_move", true);
-                        goban.setMark(17, 17, "blue_move", true);
-                        circle.border_width = 0.2;
-                        circle.border_color = "rgb(0, 130, 255)";
-                        circle.color = "rgba(0, 130, 255, 0.7)";
-                        circle2.border_width = 0.2;
-                        circle2.border_color = "rgb(0, 130, 255)";
-                        circle2.color = "rgba(0, 130, 255, 0.7)";
-                        goban.setColoredCircles([circle, circle2], false);
-                    }
-
-                    // Shapes & labels
-                    goban.setMark(15, 16, "triangle", true);
-                    goban.setMark(15, 15, "square", true);
-                    goban.setMark(15, 14, "circle", true);
-                    goban.setMark(15, 13, "cross", true);
-                    goban.setMark(15, 12, "top", true);
-                    goban.setSubscriptMark(15, 12, "sub", true);
-                    goban.setSubscriptMark(16, 12, "sub", true);
-                    goban.setMark(15, 11, "A", true);
-
-                    // pen marks
-                    const marks: MoveTreePenMarks = [];
-
-                    {
-                        const points: number[] = [];
-                        for (let i = 0; i < 50; ++i) {
-                            points.push(4 + i / 10);
-                            points.push(9 + Math.sin(i) * 19);
-                        }
-
-                        marks.push({
-                            color: "#ff8800",
-                            points,
-                        });
-                    }
-                    {
-                        const points: number[] = [];
-                        for (let i = 0; i < 50; ++i) {
-                            points.push(9 + i / 10);
-                            points.push(20 + Math.sin(i) * 19);
-                        }
-
-                        marks.push({
-                            color: "#3388ff",
-                            points,
-                        });
-                    }
-
-                    //goban.drawPenMarks(marks);
-                }
-                clearInterval(interval);
-                return;
-            }
-            const x = Math.floor(i / 19);
-            const y = Math.floor(i % 19);
-            goban.engine.place(x, y);
-            if (i === 3) {
-                /*
-                goban.setMark(x, y, "blue_move", true);
-
-                const circle: ColoredCircle = {
-                    //move: branch.moves[0],
-                    move: { x, y },
-                    color: "rgba(0,0,0,0)",
-                };
-
-                // blue move
-                goban.setMark(x, y, "blue_move", true);
-                circle.border_width = 0.5;
-                circle.border_color = "rgb(0, 130, 255)";
-                circle.color = "rgba(0, 130, 255, 0.7)";
-                goban.setColoredCircles([circle], false);
-                */
-            }
-            //goban.redraw(true);
-        }, 1);
-
-        return () => {
-            goban.destroy();
-        };
-    }, [container]);
-
-    return (
-        <React.Fragment>
-            <StoneSamples />
-
-            {elapsed > 0 && <div>Elapsed: {elapsed}ms</div>}
-            <div className="Goban">
-                <div ref={container}></div>
-            </div>
-            <div>
-                <div className="move-tree-container" ref={move_tree_container} />
-            </div>
-        </React.Fragment>
-    );
-}
-
-function StoneSamples(): React.JSX.Element {
-    const div = React.useRef(null);
-
-    React.useEffect(() => {
-        if (!div.current) {
-            console.log("no current");
-            return;
-        }
-
-        {
-            const white_theme = "Shell";
-            const black_theme = "Slate";
-            //const white_theme = "Glass";
-            //const black_theme = "Glass";
-            //const white_theme = "Worn Glass";
-            //const black_theme = "Worn Glass";
-            //const white_theme = "Night";
-            //const black_theme = "Night";
-            //const white_theme = "Plain";
-            //const black_theme = "Plain";
-            const radius = 80;
-            const cx = radius;
-            const cy = radius;
-            const size = radius * 2;
-
-            const foo = document.createElement("div");
-
-            (div.current as any)?.appendChild(foo);
-
-            {
-                const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-                svg.setAttribute("width", size.toFixed(0));
-                svg.setAttribute("height", size.toFixed(0));
-                const theme = new THEMES["black"][black_theme]();
-                const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
-                svg.appendChild(defs);
-
-                const black_stones = theme.preRenderBlackSVG(defs, radius, 123, () => {});
-
-                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-                svg.appendChild(g);
-                //for (let i = 0; i < black_stones.length; i++) {
-                for (let i = 0; i < 1; i++) {
-                    theme.placeBlackStoneSVG(
-                        g,
-                        undefined,
-                        black_stones[i],
-                        cx + i * radius * 2,
-                        cy,
-                        radius,
-                    );
-                }
-
-                foo.appendChild(svg);
-            }
-
-            {
-                const theme = new THEMES["white"][white_theme]();
-                const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
-                const white_stones = theme.preRenderWhiteSVG(defs, radius, 123, () => {});
-
-                const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-                svg.setAttribute("width", (white_stones.length * size).toFixed(0));
-                svg.setAttribute("height", size.toFixed(0));
-                svg.appendChild(defs);
-
-                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-                svg.appendChild(g);
-                for (let i = 0; i < white_stones.length; i++) {
-                    //for (let i = 0; i < 1; i++) {
-                    theme.placeWhiteStoneSVG(
-                        g,
-                        undefined,
-                        white_stones[i],
-                        cx + i * radius * 2,
-                        cy,
-                        radius,
-                    );
-                }
-
-                foo.appendChild(svg);
-            }
-        }
-
-        {
-            const radius = 20;
-            const cx = radius;
-            const cy = radius;
-            const size = radius * 2;
-
-            for (const black_theme in THEMES["black"]) {
-                const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-                svg.setAttribute("width", size.toFixed(0));
-                svg.setAttribute("height", size.toFixed(0));
-                const theme = new THEMES["black"][black_theme]();
-                const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
-                svg.appendChild(defs);
-
-                const black_stones = theme.preRenderBlackSVG(defs, radius, 123, () => {});
-
-                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-                svg.appendChild(g);
-                //for (let i = 0; i < black_stones.length; i++) {
-                for (let i = 0; i < 1; i++) {
-                    theme.placeBlackStoneSVG(
-                        g,
-                        undefined,
-                        black_stones[i],
-                        cx + i * radius * 2,
-                        cy,
-                        radius,
-                    );
-                }
-
-                const label = document.createElement("label");
-                label.textContent = black_theme;
-                label.setAttribute(
-                    "style",
-                    "display: inline-block; width: 100px; margin-right: 1rem; text-align: right;",
-                );
-                const d = document.createElement("span");
-                d.appendChild(label);
-                d.appendChild(svg);
-
-                (div.current as any)?.appendChild(d);
-            }
-
-            const br = document.createElement("br");
-            (div.current as any)?.appendChild(br);
-
-            for (const white_theme in THEMES["white"]) {
-                const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-                svg.setAttribute("width", size.toFixed(0));
-                svg.setAttribute("height", size.toFixed(0));
-                const theme = new THEMES["white"][white_theme]();
-                const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
-                svg.appendChild(defs);
-
-                const white_stones = theme.preRenderWhiteSVG(defs, radius, 123, () => {});
-
-                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-                svg.appendChild(g);
-                //for (let i = 0; i < white_stones.length; i++) {
-                for (let i = 0; i < 1; i++) {
-                    theme.placeWhiteStoneSVG(
-                        g,
-                        undefined,
-                        white_stones[i],
-                        cx + i * radius * 2,
-                        cy,
-                        radius,
-                    );
-                }
-
-                const label = document.createElement("label");
-                label.textContent = white_theme;
-                label.setAttribute(
-                    "style",
-                    "display: inline-block; width: 100px; margin-right: 1rem; text-align: right;",
-                );
-                const d = document.createElement("span");
-                d.appendChild(label);
-                d.appendChild(svg);
-
-                (div.current as any)?.appendChild(d);
-            }
-        }
-    }, [div]);
-
-    return <div ref={div} />;
-}
-
-function ReactGobanCanvas(props: ReactGobanProps): React.JSX.Element {
-    return ReactGoban<GobanCanvas>(GobanCanvas, props);
-}
-
-function ReactGobanSVG(props: ReactGobanProps): React.JSX.Element {
-    return ReactGoban<SVGRenderer>(SVGRenderer, props);
-}
-
-function Main(props: { children: any }): React.JSX.Element {
-    return <div className="Main">{props.children}</div>;
-}
-
-//import { LiveProvider, LiveEditor, LivePreview, LiveError } from "react-live";
-
-const scope = {
-    Goban: SVGRenderer,
-};
-
-const code = `
-new Goban({
-    board_div: goban_container
-});
-`;
-
-function Examples(): React.JSX.Element {
-    /*
-    return (
-        <div className="Default">
-            <LiveProvider code={code} scope={scope} noInline={true} disabled={true}>
-                <div className="grid grid-cols-2 gap-4">
-                    <LiveEditor className="font-mono" />
-                    <LivePreview />
-                    <LiveError className="text-red-800 bg-red-100 mt-2" />
-                </div>
-            </LiveProvider>
-            <div id="goban-output-div" />
-        </div>
-    );
-    */
-    return (
-        <div className="Default">
-            <CodeExample source={code} scope={scope} />
-        </div>
-    );
-}
-
-function CodeExample({
-    source,
-    scope,
+function StartScreen({
+    size,
+    onPick,
+    onStart,
 }: {
-    source: string;
-    scope: { [key: string]: any };
+    size: CubeSize;
+    onPick: (n: CubeSize) => void;
+    onStart: () => void;
 }): React.JSX.Element {
-    const [output, setOutput] = React.useState(null);
-    const goban_container = React.useRef(null);
+    return (
+        <div className="StartScreen">
+            <h1 className="StartTitle">3D Go</h1>
+            <p className="StartSubtitle">Select board size</p>
+            <div className="StartSizes">
+                {CUBE_SIZES.map((n) => (
+                    <button
+                        key={n}
+                        className={n === size ? "active" : ""}
+                        onClick={() => onPick(n)}
+                    >
+                        {n}³
+                    </button>
+                ))}
+            </div>
+            <button className="StartButton" onClick={onStart}>
+                Start Game
+            </button>
+        </div>
+    );
+}
+
+function Game({ size, onNewGame }: { size: CubeSize; onNewGame: () => void }): React.JSX.Element {
+    const [view, setView] = React.useState<View3D>("lattice");
+    const [state, setState] = React.useState(
+        () => new BoardState3D({ width: size, height: size, depth: size }),
+    );
+    const [tick, setTick] = React.useState(0);
+    const [error, setError] = React.useState<string | null>(null);
+    const [lineMode, setLineMode] = React.useState<LineMode>("all");
+    const [sectionCut, setSectionCut] = React.useState(false);
+    const [sliceZ, setSliceZ] = React.useState(0);
+    const [libMode, setLibMode] = React.useState<LibMode>("off");
+    const [hoverGroup, setHoverGroup] = React.useState<Intersection3D | null>(null);
+    const [showAllSlices, setShowAllSlices] = React.useState(false);
+    const [placeMode, setPlaceMode] = React.useState<PlaceMode>("alternate");
+    const [scoreMode, setScoreMode] = React.useState<ScoreMode>("off");
+    const [dead, setDead] = React.useState<Set<number>>(new Set());
+    const [komi, setKomi] = React.useState(0);
+    const finalMode = scoreMode === "final";
 
     React.useEffect(() => {
-        if (!goban_container.current) {
+        setDead(new Set());
+    }, [state]);
+
+    const pinPlayer = () => {
+        if (placeMode === "black") {
+            state.player = JGOFNumericPlayerColor.BLACK;
+        } else if (placeMode === "white") {
+            state.player = JGOFNumericPlayerColor.WHITE;
+        }
+    };
+
+    React.useEffect(() => {
+        pinPlayer();
+        setTick((t) => t + 1);
+    }, [placeMode, state]);
+
+    React.useEffect(() => {
+        setHoverGroup(null);
+    }, [libMode]);
+
+    const highlights = React.useMemo<Intersection3D[]>(() => {
+        // tick participates so color liberties refresh after each move
+        void tick;
+        if (libMode === "black") {
+            return state.getColorLiberties(JGOFNumericPlayerColor.BLACK);
+        }
+        if (libMode === "white") {
+            return state.getColorLiberties(JGOFNumericPlayerColor.WHITE);
+        }
+        if (libMode === "group" && hoverGroup) {
+            const group = state.getRawStoneString(hoverGroup.x, hoverGroup.y, hoverGroup.z);
+            if (
+                state.getStone(hoverGroup.x, hoverGroup.y, hoverGroup.z) !==
+                JGOFNumericPlayerColor.EMPTY
+            ) {
+                return state.getLiberties(group);
+            }
+        }
+        return [];
+    }, [libMode, hoverGroup, state, tick]);
+
+    const highlightSet = React.useMemo(() => new Set(highlights.map(libKey)), [highlights]);
+
+    const panelZs = React.useMemo<number[]>(
+        () =>
+            showAllSlices
+                ? Array.from({ length: state.depth }, (_, i) => i)
+                : [sliceZ - 1, sliceZ, sliceZ + 1].filter((z) => z >= 0 && z < state.depth),
+        [showAllSlices, sliceZ, state],
+    );
+
+    const panelLayout = React.useMemo(
+        () => bestSliceLayout(panelZs.length, state.width),
+        [panelZs.length, state.width],
+    );
+
+    const onHoverGroup = (pos: Intersection3D | null) => {
+        if (libMode !== "group") {
             return;
         }
+        setHoverGroup((prev) => {
+            if (prev === pos) {
+                return prev;
+            }
+            if (prev && pos && prev.x === pos.x && prev.y === pos.y && prev.z === pos.z) {
+                return prev;
+            }
+            return pos;
+        });
+    };
 
-        try {
-            const context = { ...scope, goban_container: goban_container.current };
-
-            setOutput(
-                Function(
-                    ...Object.keys(context),
-                    '"use strict"; ' + source,
-                )(...Object.values(context)),
-            );
-        } catch (e) {
-            console.error(e);
+    React.useEffect(() => {
+        if (view !== "lattice") {
+            return;
         }
-    }, [source, scope, goban_container]);
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setSliceZ((z) => Math.min(state.depth - 1, z + 1));
+            } else if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setSliceZ((z) => Math.max(0, z - 1));
+            }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [view, state]);
+
+    const play = (x: number, y: number, z: number) => {
+        try {
+            state.play(x, y, z);
+            pinPlayer();
+            setError(null);
+            setTick((t) => t + 1);
+        } catch (e) {
+            setError((e as Error).message);
+        }
+    };
+
+    const toggleDead = (x: number, y: number, z: number) => {
+        if (state.getStone(x, y, z) === JGOFNumericPlayerColor.EMPTY) {
+            return;
+        }
+        const group = state.getRawStoneString(x, y, z);
+        setDead((prev) => {
+            const next = new Set(prev);
+            const allDead = group.every((p) => next.has(state.topology.idx(p.x, p.y, p.z)));
+            for (const p of group) {
+                const i = state.topology.idx(p.x, p.y, p.z);
+                if (allDead) {
+                    next.delete(i);
+                } else {
+                    next.add(i);
+                }
+            }
+            return next;
+        });
+    };
+
+    const onPoint = (x: number, y: number, z: number) => {
+        if (finalMode) {
+            toggleDead(x, y, z);
+        } else {
+            play(x, y, z);
+        }
+    };
+
+    const score = React.useMemo<ScoreResult | null>(() => {
+        void tick;
+        if (scoreMode === "final") {
+            return scoreTrompTaylor(state, { komi, dead });
+        }
+        if (scoreMode === "estimate") {
+            return estimateScoreInfluence(state, { komi });
+        }
+        return null;
+    }, [scoreMode, state, tick, dead, komi]);
+
+    const blackTerritorySet = React.useMemo(
+        () => new Set((score?.blackTerritory ?? []).map((p) => state.topology.idx(p.x, p.y, p.z))),
+        [score, state],
+    );
+    const whiteTerritorySet = React.useMemo(
+        () => new Set((score?.whiteTerritory ?? []).map((p) => state.topology.idx(p.x, p.y, p.z))),
+        [score, state],
+    );
+
+    const sliceScoreProps = {
+        scoring: finalMode,
+        dead: finalMode ? dead : EMPTY_DEAD,
+        blackTerritory: blackTerritorySet,
+        whiteTerritory: whiteTerritorySet,
+    };
+
+    const onPass = () => {
+        state.pass();
+        pinPlayer();
+        setError(null);
+        setTick((t) => t + 1);
+    };
+
+    const onReset = () => {
+        setState(new BoardState3D({ width: size, height: size, depth: size }));
+        setSliceZ(0);
+        setError(null);
+    };
 
     return (
-        <div className="CodeExample">
-            <pre className="code">{code}</pre>
-            <div ref={goban_container} className="Goban"></div>
-            <div>{output}</div>
-        </div>
-    );
-}
-
-export function LeftNav(): React.JSX.Element {
-    return (
-        <div className="LeftNav">
-            <Link to="/">Home</Link>
-            <Link to="/examples">Examples</Link>
-            <Link to="/test-page">Test page</Link>
-        </div>
-    );
-}
-
-export const routes = (
-    <>
-        <BrowserRouter>
-            <Main>
-                <LeftNav />
-                <div className="Main-content">
-                    <Routes>
-                        <Route path="/test-page" element={<GobanTestPage />} />
-                        <Route path="/examples" element={<Examples />} />
-                        <Route path="/" element={<GobanTestPage />} />
-                    </Routes>
+        <div className="Game">
+            <div className="Toolbar">
+                <div className="ToolGroup">
+                    <span className="ControlLabel">View</span>
+                    <button
+                        className={view === "slices" ? "active" : ""}
+                        onClick={() => setView("slices")}
+                    >
+                        Slices
+                    </button>
+                    <button
+                        className={view === "lattice" ? "active" : ""}
+                        onClick={() => setView("lattice")}
+                    >
+                        Lattice
+                    </button>
                 </div>
-            </Main>
-        </BrowserRouter>
-    </>
-);
+                <div className="ToolGroup">
+                    <span className="ControlLabel">Grid</span>
+                    {LINE_MODES.map(({ mode, label }) => (
+                        <button
+                            key={mode}
+                            className={lineMode === mode ? "active" : ""}
+                            disabled={view !== "lattice"}
+                            onClick={() => setLineMode(mode)}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+                <div className="ToolGroup">
+                    <button
+                        className={sectionCut ? "active" : ""}
+                        disabled={view !== "lattice"}
+                        onClick={() => setSectionCut((v) => !v)}
+                    >
+                        Section cut
+                    </button>
+                    <button
+                        className={showAllSlices ? "active" : ""}
+                        disabled={view !== "lattice"}
+                        onClick={() => setShowAllSlices((v) => !v)}
+                    >
+                        All slices
+                    </button>
+                </div>
+                <div className="ToolGroup">
+                    <span className="ControlLabel">Liberties</span>
+                    {LIB_MODES.map(({ mode, label }) => (
+                        <button
+                            key={mode}
+                            className={libMode === mode ? "active" : ""}
+                            onClick={() => setLibMode(mode)}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+                <div className="ToolGroup">
+                    <span className="ControlLabel">Place</span>
+                    {PLACE_MODES.map(({ mode, label }) => (
+                        <button
+                            key={mode}
+                            className={placeMode === mode ? "active" : ""}
+                            onClick={() => setPlaceMode(mode)}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+                <div className="ToolGroup ToolGroup--right">
+                    <span className="ControlLabel">Score</span>
+                    <button
+                        className={scoreMode === "estimate" ? "active" : ""}
+                        onClick={() => setScoreMode((m) => (m === "estimate" ? "off" : "estimate"))}
+                    >
+                        Estimate
+                    </button>
+                    <button
+                        className={scoreMode === "final" ? "active" : ""}
+                        onClick={() => setScoreMode((m) => (m === "final" ? "off" : "final"))}
+                    >
+                        Final
+                    </button>
+                    <span className="ControlSeparator" />
+                    <button onClick={onPass}>Pass</button>
+                    <button onClick={onReset}>Reset</button>
+                    <button onClick={onNewGame}>New game</button>
+                </div>
+            </div>
+
+            <div className="Board">
+                {view === "slices" ? (
+                    <div className="Slices">
+                        {Array.from({ length: state.depth }, (_, z) => (
+                            <Slice
+                                key={z}
+                                state={state}
+                                z={z}
+                                onPlay={onPoint}
+                                libMode={libMode}
+                                onHoverGroup={onHoverGroup}
+                                highlight={highlightSet}
+                                {...sliceScoreProps}
+                            />
+                        ))}
+                    </div>
+                ) : (
+                    <div className="LatticeLayout">
+                        <LatticeView
+                            state={state}
+                            onPlay={onPoint}
+                            syncKey={tick}
+                            lineMode={lineMode}
+                            sectionCut={sectionCut}
+                            sliceZ={sliceZ}
+                            highlights={highlights}
+                            onHoverGroup={onHoverGroup}
+                            scoring={finalMode}
+                            dead={finalMode ? dead : EMPTY_DEAD}
+                            blackTerritory={score?.blackTerritory ?? []}
+                            whiteTerritory={score?.whiteTerritory ?? []}
+                        />
+                        <div className="SidePanel">
+                            <div className="SidePanelHeader">
+                                <button
+                                    onClick={() => setSliceZ((z) => Math.max(0, z - 1))}
+                                    disabled={sliceZ === 0}
+                                >
+                                    ▼
+                                </button>
+                                <span>z = {sliceZ}</span>
+                                <button
+                                    onClick={() =>
+                                        setSliceZ((z) => Math.min(state.depth - 1, z + 1))
+                                    }
+                                    disabled={sliceZ === state.depth - 1}
+                                >
+                                    ▲
+                                </button>
+                            </div>
+                            <div className="SlicePanelArea">
+                                <div
+                                    className="SliceGrid"
+                                    style={{
+                                        gridTemplateColumns: `repeat(${panelLayout.cols}, max-content)`,
+                                        gap: `${PANEL_GAP}px`,
+                                    }}
+                                >
+                                    {panelZs.map((z) => (
+                                        <Slice
+                                            key={z}
+                                            state={state}
+                                            z={z}
+                                            onPlay={onPoint}
+                                            cell={panelLayout.cell}
+                                            current={z === sliceZ}
+                                            libMode={libMode}
+                                            onHoverGroup={onHoverGroup}
+                                            highlight={highlightSet}
+                                            {...sliceScoreProps}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {score && (
+                <div className="ScorePanel">
+                    <span className="ScoreMode">
+                        {scoreMode === "estimate" ? "Estimate" : "Final"}
+                    </span>
+                    <label className="KomiInput">
+                        Komi
+                        <input
+                            type="number"
+                            step="0.5"
+                            value={komi}
+                            onChange={(e) => setKomi(parseFloat(e.target.value) || 0)}
+                        />
+                    </label>
+                    <span className="ScoreCol">
+                        Black — stones {score.black.stones}, territory {score.black.territory}, area{" "}
+                        {score.black.area}
+                    </span>
+                    <span className="ScoreCol">
+                        White — stones {score.white.stones}, territory {score.white.territory}, area{" "}
+                        {score.white.area.toFixed(1)}
+                    </span>
+                    <strong className="ScoreResult">
+                        {score.winner === "draw"
+                            ? "Draw"
+                            : `${score.winner === "black" ? "Black" : "White"} +${score.margin.toFixed(1)}`}
+                    </strong>
+                </div>
+            )}
+
+            <div className="Status">
+                <span>
+                    {size}³ · Move {state.move_number} · To play:{" "}
+                    <strong>
+                        {state.player === JGOFNumericPlayerColor.BLACK ? "Black" : "White"}
+                    </strong>
+                </span>
+                <span>
+                    Prisoners — B:{state.black_prisoners} W:{state.white_prisoners}
+                </span>
+                <span className="Hint">
+                    {scoreMode === "final"
+                        ? "final scoring · click a stone to toggle it dead"
+                        : scoreMode === "estimate"
+                          ? "estimating · keep playing, score updates live"
+                          : view === "lattice"
+                            ? "drag to rotate · click to play · ↑/↓ move slice"
+                            : "click any intersection to play"}
+                </span>
+                {error && <span className="Error">{error}</span>}
+            </div>
+        </div>
+    );
+}
+
+function LatticeView({
+    state,
+    onPlay,
+    syncKey,
+    lineMode,
+    sectionCut,
+    sliceZ,
+    highlights,
+    onHoverGroup,
+    scoring,
+    dead,
+    blackTerritory,
+    whiteTerritory,
+}: {
+    state: BoardState3D;
+    onPlay: (x: number, y: number, z: number) => void;
+    syncKey: number;
+    lineMode: LineMode;
+    sectionCut: boolean;
+    sliceZ: number;
+    highlights: Intersection3D[];
+    onHoverGroup: (pos: Intersection3D | null) => void;
+    scoring: boolean;
+    dead: Set<number>;
+    blackTerritory: Intersection3D[];
+    whiteTerritory: Intersection3D[];
+}): React.JSX.Element {
+    const mount = React.useRef<HTMLDivElement>(null);
+    const app = React.useRef<LatticeApp | null>(null);
+    const on_play = React.useRef(onPlay);
+    on_play.current = onPlay;
+    const on_hover_group = React.useRef(onHoverGroup);
+    on_hover_group.current = onHoverGroup;
+
+    React.useEffect(() => {
+        if (!mount.current) {
+            return;
+        }
+        const created = createLatticeApp(
+            mount.current,
+            state,
+            (x, y, z) => on_play.current(x, y, z),
+            (pos) => on_hover_group.current(pos),
+        );
+        app.current = created;
+        return () => {
+            created.dispose();
+            app.current = null;
+        };
+    }, [state]);
+
+    React.useEffect(() => {
+        app.current?.syncStones();
+    }, [syncKey]);
+
+    React.useEffect(() => {
+        app.current?.setLineMode(lineMode);
+    }, [lineMode, state]);
+
+    React.useEffect(() => {
+        app.current?.setSectionCut(sectionCut);
+    }, [sectionCut, state]);
+
+    React.useEffect(() => {
+        app.current?.setSliceZ(sliceZ);
+    }, [sliceZ, state]);
+
+    React.useEffect(() => {
+        app.current?.setHighlights(highlights);
+    }, [highlights, state]);
+
+    React.useEffect(() => {
+        app.current?.setScoring(scoring);
+    }, [scoring, state]);
+
+    React.useEffect(() => {
+        app.current?.setDead(dead);
+    }, [dead, state]);
+
+    React.useEffect(() => {
+        app.current?.setTerritory(blackTerritory, whiteTerritory);
+    }, [blackTerritory, whiteTerritory, state]);
+
+    return <div ref={mount} className="LatticeMount" />;
+}
+
+function Slice({
+    state,
+    z,
+    onPlay,
+    cell = 28,
+    current = false,
+    libMode = "off",
+    onHoverGroup,
+    highlight,
+    scoring = false,
+    dead,
+    blackTerritory,
+    whiteTerritory,
+}: {
+    state: BoardState3D;
+    z: number;
+    onPlay: (x: number, y: number, z: number) => void;
+    cell?: number;
+    current?: boolean;
+    libMode?: LibMode;
+    onHoverGroup?: (pos: Intersection3D | null) => void;
+    highlight?: Set<string>;
+    scoring?: boolean;
+    dead?: Set<number>;
+    blackTerritory?: Set<number>;
+    whiteTerritory?: Set<number>;
+}): React.JSX.Element {
+    const W = state.width;
+    const H = state.height;
+    const CELL = cell;
+    const PAD = CELL * SLICE_PAD_FRAC;
+    const svgW = (W - 1) * CELL + 2 * PAD;
+    const svgH = (H - 1) * CELL + 2 * PAD;
+    const cx = (x: number) => PAD + x * CELL;
+    const cy = (y: number) => PAD + y * CELL;
+
+    const [hover, setHover] = React.useState<{ x: number; y: number } | null>(null);
+
+    const enter = (x: number, y: number) => {
+        setHover({ x, y });
+        if (libMode === "group" && onHoverGroup) {
+            const occupied = state.getStone(x, y, z) !== JGOFNumericPlayerColor.EMPTY;
+            onHoverGroup(occupied ? { x, y, z } : null);
+        }
+    };
+    const leave = () => {
+        setHover(null);
+        if (libMode === "group" && onHoverGroup) {
+            onHoverGroup(null);
+        }
+    };
+
+    const cells: React.JSX.Element[] = [];
+    const ghosts: React.JSX.Element[] = [];
+    const stones: React.JSX.Element[] = [];
+    const highlights: React.JSX.Element[] = [];
+    const territories: React.JSX.Element[] = [];
+
+    for (let y = 0; y < H; ++y) {
+        for (let x = 0; x < W; ++x) {
+            const idx = state.topology.idx(x, y, z);
+            cells.push(
+                <rect
+                    key={`c${x},${y}`}
+                    x={cx(x) - CELL / 2}
+                    y={cy(y) - CELL / 2}
+                    width={CELL}
+                    height={CELL}
+                    fill="transparent"
+                    onClick={() => onPlay(x, y, z)}
+                    onMouseEnter={() => enter(x, y)}
+                    style={{ cursor: "pointer" }}
+                />,
+            );
+
+            if (highlight && highlight.has(`${x},${y},${z}`)) {
+                highlights.push(
+                    <circle
+                        key={`l${x},${y}`}
+                        cx={cx(x)}
+                        cy={cy(y)}
+                        r={CELL * 0.24}
+                        fill="#39d0ff"
+                        opacity={0.85}
+                        stroke="#06485e"
+                        strokeWidth={1}
+                        pointerEvents="none"
+                    />,
+                );
+            }
+
+            const terrOwner = blackTerritory?.has(idx)
+                ? "black"
+                : whiteTerritory?.has(idx)
+                  ? "white"
+                  : null;
+            if (terrOwner) {
+                territories.push(
+                    <rect
+                        key={`t${x},${y}`}
+                        x={cx(x) - CELL * 0.18}
+                        y={cy(y) - CELL * 0.18}
+                        width={CELL * 0.36}
+                        height={CELL * 0.36}
+                        fill={terrOwner === "black" ? "#000" : "#fff"}
+                        opacity={0.6}
+                        pointerEvents="none"
+                    />,
+                );
+            }
+
+            const here = state.getStone(x, y, z);
+            if (here !== JGOFNumericPlayerColor.EMPTY) {
+                stones.push(
+                    <circle
+                        key={`s${x},${y}`}
+                        cx={cx(x)}
+                        cy={cy(y)}
+                        r={CELL * 0.45}
+                        fill={here === JGOFNumericPlayerColor.BLACK ? "#111" : "#fafafa"}
+                        stroke="#000"
+                        strokeWidth={1}
+                        opacity={dead?.has(idx) ? 0.25 : 1}
+                    />,
+                );
+            } else if (state.depth > 1) {
+                const above = z + 1 < state.depth ? state.getStone(x, y, z + 1) : 0;
+                const below = z - 1 >= 0 ? state.getStone(x, y, z - 1) : 0;
+                const ghost = above || below;
+                if (ghost) {
+                    ghosts.push(
+                        <circle
+                            key={`g${x},${y}`}
+                            cx={cx(x)}
+                            cy={cy(y)}
+                            r={3}
+                            fill={ghost === JGOFNumericPlayerColor.BLACK ? "#000" : "#fff"}
+                            opacity={0.4}
+                            pointerEvents="none"
+                        />,
+                    );
+                }
+            }
+        }
+    }
+
+    const gridLines: React.JSX.Element[] = [];
+    for (let y = 0; y < H; ++y) {
+        gridLines.push(
+            <line
+                key={`h${y}`}
+                x1={cx(0)}
+                y1={cy(y)}
+                x2={cx(W - 1)}
+                y2={cy(y)}
+                stroke="#1a1208"
+                strokeWidth={1}
+            />,
+        );
+    }
+    for (let x = 0; x < W; ++x) {
+        gridLines.push(
+            <line
+                key={`v${x}`}
+                x1={cx(x)}
+                y1={cy(0)}
+                x2={cx(x)}
+                y2={cy(H - 1)}
+                stroke="#1a1208"
+                strokeWidth={1}
+            />,
+        );
+    }
+
+    let preview: React.JSX.Element | null = null;
+    if (!scoring && hover && state.getStone(hover.x, hover.y, z) === JGOFNumericPlayerColor.EMPTY) {
+        preview = (
+            <circle
+                cx={cx(hover.x)}
+                cy={cy(hover.y)}
+                r={CELL * 0.45}
+                fill={state.player === JGOFNumericPlayerColor.BLACK ? "#111" : "#fafafa"}
+                opacity={0.45}
+                pointerEvents="none"
+            />
+        );
+    }
+
+    return (
+        <div className={current ? "Slice current" : "Slice"}>
+            <div className="SliceLabel">
+                z = {z}
+                {current ? " · current" : ""}
+            </div>
+            <svg width={svgW} height={svgH} className="SliceSvg" onMouseLeave={leave}>
+                {gridLines}
+                {ghosts}
+                {highlights}
+                {territories}
+                {stones}
+                {preview}
+                {cells}
+            </svg>
+        </div>
+    );
+}
 
 const react_root = ReactDOM.createRoot(document.getElementById("test-content") as Element);
-//react_root.render(<GobanTestPage />);
-//react_root.render(<React.StrictMode>{routes}</React.StrictMode>);
-react_root.render(routes);
+react_root.render(<Sandbox />);

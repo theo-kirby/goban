@@ -16,19 +16,16 @@
 
 export * from "./BoardState";
 export * from "./GobanEngine";
-export * from "./autoscore";
 export * from "../GobanBase";
 export * from "./GobanError";
-export * from "./GobanSocket";
-export * from "./ai";
 export * from "./ConditionalMoveTree";
 export * from "./MoveTree";
-export * from "./ownership_estimators";
-export * from "./ScoreEstimator";
 export * from "./StoneString";
 export * from "./StoneStringBuilder";
+export * from "./Topology";
+export * from "./BoardState3D";
+export * from "./Scorer3D";
 export * from "./formats";
 export * from "./util";
-export * as protocol from "./protocol";
 
 export * as translate from "./translate";

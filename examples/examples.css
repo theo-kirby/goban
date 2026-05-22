@@ -2,81 +2,316 @@ html, body {
     margin: 0;
     background-color: #333;
     color: #aaa;
-}
-.Goban {
-    margin-left: 1rem;
-    margin-top: 1rem;
-    position: relative;
-    display: inline-block;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
 }
 
-.StoneLayer, .ShadowLayer, .PenLayer {
-    position: absolute;
-    left: 0;
-    right: 0;
-}
-
-.ShadowLayer {
-    z-index: 5;
-}
-.StoneLayer {
-    z-index: 10;
-}
-.PenLayer {
-    z-index: 20;
-}
-
-.inline-block {
-    display: inline-block;
-}
-
-.setting span {
-    display: inline-block;
-    min-width: 7rem;
-}
-
-.move-tree-container {
-    display: inline-block;
-    background-color: gray;
-    height: 20rem;
-    width: 30rem;
-    margin: 1rem;
-    resize: both;
-    overflow: scroll;
-}
-
-svg text {
-    font-family: Verdana, Arial, sans-serif;
-    text-anchor: middle;
-    font-weight: bold;
-    user-select: none;
-}
-
-a {
-    color: hsl(200, 100%, 50%);
-}
-
-.Main {
-    display: flex;
-    flex-direction: row;
-    width: 100dvw;
-    height: 100dvh;
-}
-
-.LeftNav {
-    flex-basis: 10rem;
-    flex-grow: 0;
-    flex-shrink: 0;
+.Sandbox {
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
-
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    box-sizing: border-box;
 }
 
-.Main-content {
-    flex-grow: 1;
+/* ---- Start screen ---- */
 
+.StartScreen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    background: #262626;
+    border: 1px solid #444;
+    border-radius: 14px;
+    padding: 2.5rem 3rem;
 }
 
-.font-mono {
-    font-family: monospace;
+.StartTitle {
+    margin: 0;
+    font-size: 2.4rem;
+    color: #eee;
+    letter-spacing: 0.04em;
+}
+
+.StartSubtitle {
+    margin: 0;
+    color: #888;
+    font-size: 0.95rem;
+}
+
+.StartSizes {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.StartSizes button {
+    background: #1c1c1c;
+    color: #aaa;
+    border: 1px solid #555;
+    padding: 0.55rem 1rem;
+    font: inherit;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+.StartSizes button.active {
+    background: #aaa;
+    color: #111;
+    border-color: #aaa;
+}
+
+.StartButton {
+    margin-top: 0.5rem;
+    background: #3a7bd5;
+    color: #fff;
+    border: none;
+    padding: 0.65rem 2.2rem;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+.StartButton:hover {
+    background: #4a8be5;
+}
+
+/* ---- Game shell (stable layout) ---- */
+
+.Game {
+    width: min(96vw, 1320px);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.Toolbar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    flex-wrap: wrap;
+    background: #262626;
+    border: 1px solid #444;
+    border-radius: 10px;
+    padding: 0.6rem 0.9rem;
+    box-sizing: border-box;
+}
+
+.ToolGroup {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.ToolGroup--right {
+    margin-left: auto;
+}
+
+.ControlLabel {
+    color: #888;
+    font-size: 0.85rem;
+    margin-right: 0.1rem;
+}
+
+.Toolbar button {
+    background: #1c1c1c;
+    color: #aaa;
+    border: 1px solid #555;
+    padding: 0.4rem 0.85rem;
+    font: inherit;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+.Toolbar button.active {
+    background: #aaa;
+    color: #1c1c1c;
+    border-color: #aaa;
+}
+
+.Toolbar button:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.Board {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 600px;
+}
+
+/* ---- 2D slices ---- */
+
+.Slices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+    max-width: 100%;
+}
+
+.Slice {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.SliceLabel {
+    font-size: 0.75rem;
+    color: #888;
+    letter-spacing: 0.05em;
+}
+
+.SliceSvg {
+    background: #dcb35c;
+    border-radius: 6px;
+    display: block;
+}
+
+.SlicePanelArea {
+    width: 600px;
+    height: 560px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.SliceGrid {
+    display: grid;
+    align-content: center;
+    justify-content: center;
+    justify-items: center;
+    align-items: center;
+}
+
+.Slice.current .SliceSvg {
+    outline: 2px solid #39d0ff;
+    outline-offset: 1px;
+}
+
+.Slice.current .SliceLabel {
+    color: #39d0ff;
+}
+
+/* ---- Lattice view ---- */
+
+.LatticeLayout {
+    display: flex;
+    gap: 1.25rem;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.LatticeMount {
+    width: 640px;
+    height: 600px;
+    flex: none;
+    border-radius: 12px;
+    overflow: hidden;
+    touch-action: none;
+}
+
+.SidePanel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.SidePanelHeader {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: #ccc;
+    font-size: 0.85rem;
+}
+
+.SidePanelHeader button {
+    background: #1c1c1c;
+    color: #aaa;
+    border: 1px solid #555;
+    width: 1.9rem;
+    height: 1.9rem;
+    font: inherit;
+    cursor: pointer;
+    border-radius: 5px;
+    line-height: 1;
+}
+
+.SidePanelHeader button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* ---- Status ---- */
+
+.Status {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    color: #ccc;
+    font-size: 0.9rem;
+    flex-wrap: wrap;
+}
+
+.Status .Hint {
+    color: #777;
+    font-size: 0.8rem;
+}
+
+.Status .Error {
+    color: #e57373;
+    font-style: italic;
+}
+
+.ScorePanel {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    background: #262626;
+    border: 1px solid #444;
+    border-radius: 10px;
+    padding: 0.6rem 0.9rem;
+    color: #ccc;
+    font-size: 0.9rem;
+}
+
+.ScorePanel .KomiInput {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: #888;
+    font-size: 0.85rem;
+}
+
+.ScorePanel .KomiInput input {
+    width: 4rem;
+    background: #1c1c1c;
+    color: #ccc;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 0.25rem 0.4rem;
+    font: inherit;
+}
+
+.ScorePanel .ScoreMode {
+    color: #39d0ff;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+}
+
+.ScorePanel .ScoreResult {
+    color: #fff;
+    font-size: 1rem;
 }
