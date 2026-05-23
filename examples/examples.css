@@ -484,8 +484,7 @@ html, body {
 }
 
 .Slice.current .SliceSvg {
-    outline: 2px solid #39d0ff;
-    outline-offset: 1px;
+    box-shadow: 0 0 0 2px #39d0ff;
 }
 
 .Slice.current .SliceLabel {
