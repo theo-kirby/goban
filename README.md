@@ -2,28 +2,28 @@
 
 # 3D Go
 
-A research project exploring **3D Go** — Go played on an N×N×N lattice instead of a 2D grid. The rules are unchanged from standard Go; only the topology differs: an interior intersection has **6 liberties** (±x, ±y, ±z) instead of 4. The goals are a correct engine, a human-playable UX for the hard-to-perceive lattice, and eventually a self-play AI.
+A research project exploring **3D Go**; Go played on an N×N×N lattice instead of a 2D grid. I find it pretty elegant that the rules are effectively unchanged from standard Go; only the topology differs: an interior intersection has **6 liberties** (±x, ±y, ±z) instead of 4. The goals are a correct engine, a human-playable UX for the hard-to-perceive lattice, and eventually a self-play AI, perhaps even a version that takes something like [autogo](https://github.com/ericjang/autogo) and builds a similar, simpler system based on alpha go to play this variant.
 
-Built on a stripped fork of [online-go/goban](https://github.com/online-go/goban). Removed from upstream: OGS networking + protocol, the Canvas renderer, score estimator / autoscore, AI review, chat, all stone/board themes except `Plain`, the standalone engine-only build, the Jest test suite, typedoc, cspell, jscpd, and husky. The legacy 2D engine + SVG renderer remain — the 3D engine is built parallel to them rather than on top.
+Built on a stripped fork of [online-go/goban](https://github.com/online-go/goban). Removed from upstream: OGS networking + protocol, the Canvas renderer, score estimator / autoscore, AI review, chat, all stone/board themes except `Plain`, the standalone engine-only build, the Jest test suite, typedoc, cspell, jscpd, and husky. The legacy 2D engine + SVG renderer remain -the 3D engine is built parallel to them rather than on top.
 
 ## Screenshots
 
-A random 9³ position rendered in the interactive lattice view (right) with all nine z-slices shown on the side panel:
+A random 9³ position rendered in the interactive lattice view (left) with all nine z-slices shown on the right panel:
 
 ![Random 9³ position](docs/screenshots/random-9.png)
 
-A 3³ board illustrating a 6-liberty atari — the lone white stone sits on the interior intersection of a 3³ cube and is surrounded by black on five of its six neighbors, leaving a single liberty:
+A 3³ board illustrating a 6-liberty atari — the lone black stone sits on the interior intersection of a 3³ cube and is surrounded by white on five of its six neighbors, leaving a single liberty:
 
 ![6-liberty atari on 3³](docs/screenshots/atari-3.png)
 
-After black plays the last liberty, the white group is captured and the prisoner count updates:
+After white plays the last liberty, the black group is captured and the prisoner count updates:
 
 ![Capture result on 3³](docs/screenshots/capture-3.png)
 
 ## Run
 
 ```
-yarn install     # first time only
+yarn install
 yarn run dev     # http://localhost:9000/sandbox
 ```
 
