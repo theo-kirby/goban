@@ -251,7 +251,7 @@ function BrandIcon(): React.JSX.Element {
 }
 
 function Sandbox(): React.JSX.Element {
-    const [size, setSize] = React.useState<CubeSize>(5);
+    const [size, setSize] = React.useState<CubeSize>(4);
 
     return (
         <div className="Sandbox">
@@ -280,7 +280,7 @@ function Game({
     const [sliceZ, setSliceZ] = React.useState(0);
     const [libMode, setLibMode] = React.useState<LibMode>("off");
     const [hoverGroup, setHoverGroup] = React.useState<Intersection3D | null>(null);
-    const [showAllSlices, setShowAllSlices] = React.useState(false);
+    const [showAllSlices, setShowAllSlices] = React.useState(true);
     const [placeMode, setPlaceMode] = React.useState<PlaceMode>("alternate");
     const [scoreMode, setScoreMode] = React.useState<ScoreMode>("off");
     const [dead, setDead] = React.useState<Set<number>>(new Set());
