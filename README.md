@@ -2,6 +2,8 @@
 
 # 3D Go
 
+[demo](https://3go.online)
+
 A research project exploring **3D Go**; Go played on an N×N×N lattice instead of a 2D grid. I find it pretty elegant that the rules are effectively unchanged from standard Go; only the topology differs: an interior intersection has **6 liberties** (±x, ±y, ±z) instead of 4. The goals are a correct engine, a human-playable UX for the hard-to-perceive lattice, and eventually a self-play AI, perhaps even a version that takes something like [autogo](https://github.com/ericjang/autogo) and builds a similar, simpler system based on alpha go to play this variant.
 
 Built on a stripped fork of [online-go/goban](https://github.com/online-go/goban). Removed from upstream: OGS networking + protocol, the Canvas renderer, score estimator / autoscore, AI review, chat, all stone/board themes except `Plain`, the standalone engine-only build, the Jest test suite, typedoc, cspell, jscpd, and husky. The legacy 2D engine + SVG renderer remain -the 3D engine is built parallel to them rather than on top.
