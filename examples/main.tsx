@@ -885,6 +885,22 @@ function Sidebar({
                     </label>
                 </div>
             </div>
+            <div className="SidebarCredits">
+                <a
+                    href="https://github.com/theo-kirby/goban"
+                    target="_blank"
+                    rel="noreferrer noopener"
+                >
+                    source: theo-kirby/goban
+                </a>
+                <a
+                    href="https://twitter.com/kirbytheodor"
+                    target="_blank"
+                    rel="noreferrer noopener"
+                >
+                    by @kirbytheodor
+                </a>
+            </div>
         </aside>
     );
 }
