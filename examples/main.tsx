@@ -70,6 +70,38 @@ const SCORE_MODES: { value: ScoreMode; label: string }[] = [
 
 const libKey = (p: Intersection3D): string => `${p.x},${p.y},${p.z}`;
 
+/* Build a fresh board of size N and play random legal moves until ~40% of
+ * intersections are filled (or no more legal moves remain). */
+function makeRandomBoard(size: CubeSize): BoardState3D {
+    const state = new BoardState3D({ width: size, height: size, depth: size });
+    const positions: { x: number; y: number; z: number }[] = [];
+    for (let z = 0; z < size; ++z) {
+        for (let y = 0; y < size; ++y) {
+            for (let x = 0; x < size; ++x) {
+                positions.push({ x, y, z });
+            }
+        }
+    }
+    for (let i = positions.length - 1; i > 0; --i) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [positions[i], positions[j]] = [positions[j], positions[i]];
+    }
+    const target = Math.floor(positions.length * 0.4);
+    let placed = 0;
+    for (const p of positions) {
+        if (placed >= target) {
+            break;
+        }
+        try {
+            state.play(p.x, p.y, p.z);
+            placed++;
+        } catch {
+            /* illegal (suicide / ko) — skip */
+        }
+    }
+    return state;
+}
+
 /* Fixed area the slice boards live in (px). Never changes; the boards scale
  * to fill it as large as possible regardless of how many are shown. */
 const PANEL_AREA_W = 600;
@@ -157,6 +189,67 @@ function Dropdown({
     );
 }
 
+/* Modal confirmation. Backdrop click and Esc cancel; Enter confirms. */
+function ConfirmDialog({
+    title,
+    message,
+    confirmLabel,
+    onConfirm,
+    onCancel,
+}: {
+    title: string;
+    message: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+}): React.JSX.Element {
+    React.useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                e.preventDefault();
+                onCancel();
+            } else if (e.key === "Enter") {
+                e.preventDefault();
+                onConfirm();
+            }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [onCancel, onConfirm]);
+    return (
+        <div className="DialogBackdrop" onClick={onCancel} role="presentation">
+            <div
+                className="Dialog"
+                role="dialog"
+                aria-modal="true"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <h2 className="DialogTitle">{title}</h2>
+                <p className="DialogMessage">{message}</p>
+                <div className="DialogActions">
+                    <button type="button" className="ToolAction" onClick={onCancel}>
+                        Cancel
+                    </button>
+                    <button type="button" className="DialogConfirm" onClick={onConfirm} autoFocus>
+                        {confirmLabel}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/* Three overlapping go stones — used as the app brand mark. */
+function BrandIcon(): React.JSX.Element {
+    return (
+        <svg className="BrandIcon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <circle cx="8.5" cy="9.5" r="5.5" fill="#0c0c0c" stroke="#3a3a3a" strokeWidth="0.6" />
+            <circle cx="15.5" cy="9.5" r="5.5" fill="#f5f5f5" stroke="#8a8a8a" strokeWidth="0.6" />
+            <circle cx="12" cy="16" r="5.5" fill="#0c0c0c" stroke="#3a3a3a" strokeWidth="0.6" />
+        </svg>
+    );
+}
+
 function Sandbox(): React.JSX.Element {
     const [size, setSize] = React.useState<CubeSize>(5);
 
@@ -192,6 +285,12 @@ function Game({
     const [scoreMode, setScoreMode] = React.useState<ScoreMode>("off");
     const [dead, setDead] = React.useState<Set<number>>(new Set());
     const [komi, setKomi] = React.useState(0);
+    const [pending, setPending] = React.useState<{
+        title: string;
+        message: string;
+        confirmLabel: string;
+        run: () => void;
+    } | null>(null);
     const [sidebarOpen, setSidebarOpen] = React.useState<boolean>(() => {
         if (typeof window === "undefined") {
             return true;
@@ -369,10 +468,59 @@ function Game({
         setTick((t) => t + 1);
     };
 
-    const onReset = () => {
+    const doReset = () => {
         setState(new BoardState3D({ width: size, height: size, depth: size }));
         setSliceZ(0);
         setError(null);
+    };
+
+    const doRandom = () => {
+        setState(makeRandomBoard(size));
+        setSliceZ(0);
+        setError(null);
+    };
+
+    const isDirty = state.move_number > 0;
+
+    const confirmIfDirty = (
+        run: () => void,
+        title: string,
+        message: string,
+        confirmLabel: string,
+    ) => {
+        if (!isDirty) {
+            run();
+            return;
+        }
+        setPending({ title, message, confirmLabel, run });
+    };
+
+    const onReset = () =>
+        confirmIfDirty(
+            doReset,
+            "Reset board?",
+            "Resetting clears every stone on the board. This cannot be undone.",
+            "Reset",
+        );
+
+    const onRandom = () =>
+        confirmIfDirty(
+            doRandom,
+            "Generate random board?",
+            "This replaces the current position with a random one. The current game will be lost.",
+            "Generate",
+        );
+
+    const requestChangeSize = (n: CubeSize) => {
+        if (n === size) {
+            return;
+        }
+        confirmIfDirty(
+            () => onChangeSize(n),
+            `Switch to ${n}³?`,
+            `Changing board size starts a new game on a ${n}³ cube. The current position will be lost.`,
+            "Switch",
+        );
     };
 
     const hint =
@@ -397,7 +545,8 @@ function Game({
                 <Sidebar
                     open={sidebarOpen}
                     size={size}
-                    onChangeSize={onChangeSize}
+                    onChangeSize={requestChangeSize}
+                    onRandom={onRandom}
                     view={view}
                     setView={setView}
                     lineMode={lineMode}
@@ -522,6 +671,19 @@ function Game({
                     </div>
                 </div>
             </div>
+            {pending && (
+                <ConfirmDialog
+                    title={pending.title}
+                    message={pending.message}
+                    confirmLabel={pending.confirmLabel}
+                    onConfirm={() => {
+                        const run = pending.run;
+                        setPending(null);
+                        run();
+                    }}
+                    onCancel={() => setPending(null)}
+                />
+            )}
         </div>
     );
 }
@@ -552,7 +714,7 @@ function AppHeader({
                 ☰
             </button>
             <div className="AppHeader__brand">
-                <span className="Mark">◆</span>
+                <BrandIcon />
                 <span>3D Go</span>
             </div>
             <div className="AppHeader__status">
@@ -584,6 +746,7 @@ function Sidebar({
     open,
     size,
     onChangeSize,
+    onRandom,
     view,
     setView,
     lineMode,
@@ -604,6 +767,7 @@ function Sidebar({
     open: boolean;
     size: CubeSize;
     onChangeSize: (n: CubeSize) => void;
+    onRandom: () => void;
     view: View3D;
     setView: (v: View3D) => void;
     lineMode: LineMode;
@@ -632,6 +796,11 @@ function Sidebar({
                         value={String(size)}
                         onChange={(v) => onChangeSize(Number(v) as CubeSize)}
                     />
+                </div>
+                <div className="SidebarRow">
+                    <button type="button" className="ToolAction Wide" onClick={onRandom}>
+                        Random position
+                    </button>
                 </div>
             </div>
             <div className="SidebarSection">
