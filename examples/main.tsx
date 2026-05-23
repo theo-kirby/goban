@@ -36,24 +36,35 @@ type ScoreMode = "off" | "estimate" | "final";
 
 const EMPTY_DEAD: Set<number> = new Set();
 
-const LIB_MODES: { mode: LibMode; label: string }[] = [
-    { mode: "off", label: "Off" },
-    { mode: "group", label: "Group" },
-    { mode: "black", label: "Black" },
-    { mode: "white", label: "White" },
+const VIEW_MODES: { value: View3D; label: string }[] = [
+    { value: "slices", label: "Slices" },
+    { value: "lattice", label: "Lattice" },
 ];
 
-const PLACE_MODES: { mode: PlaceMode; label: string }[] = [
-    { mode: "alternate", label: "Alternate" },
-    { mode: "black", label: "Black" },
-    { mode: "white", label: "White" },
+const LIB_MODES: { value: LibMode; label: string }[] = [
+    { value: "off", label: "Off" },
+    { value: "group", label: "Group" },
+    { value: "black", label: "Black" },
+    { value: "white", label: "White" },
 ];
 
-const LINE_MODES: { mode: LineMode; label: string }[] = [
-    { mode: "all", label: "All" },
-    { mode: "horizontal", label: "Horiz" },
-    { mode: "vertical", label: "Vert" },
-    { mode: "none", label: "None" },
+const PLACE_MODES: { value: PlaceMode; label: string }[] = [
+    { value: "alternate", label: "Alt" },
+    { value: "black", label: "Black" },
+    { value: "white", label: "White" },
+];
+
+const LINE_MODES: { value: LineMode; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "horizontal", label: "Horiz" },
+    { value: "vertical", label: "Vert" },
+    { value: "none", label: "None" },
+];
+
+const SCORE_MODES: { value: ScoreMode; label: string }[] = [
+    { value: "off", label: "Off" },
+    { value: "estimate", label: "Estimate" },
+    { value: "final", label: "Final" },
 ];
 
 const libKey = (p: Intersection3D): string => `${p.x},${p.y},${p.z}`;
@@ -84,6 +95,65 @@ function bestSliceLayout(n: number, s: number): { cell: number; cols: number } {
         }
     }
     return best;
+}
+
+/* A connected, mutually-exclusive toggle group. The active option is filled;
+ * clicking an option calls onChange with its value. */
+function Segmented({
+    options,
+    value,
+    onChange,
+    disabled = false,
+}: {
+    options: { value: string; label: string }[];
+    value: string;
+    onChange: (value: string) => void;
+    disabled?: boolean;
+}): React.JSX.Element {
+    return (
+        <div className="Segmented">
+            {options.map((o) => (
+                <button
+                    key={o.value}
+                    type="button"
+                    className={value === o.value ? "active" : ""}
+                    disabled={disabled}
+                    onClick={() => onChange(o.value)}
+                >
+                    {o.label}
+                </button>
+            ))}
+        </div>
+    );
+}
+
+/* A compact labeled dropdown (native select) for settings with several
+ * options that don't need to be visible at all times. */
+function Dropdown({
+    label,
+    options,
+    value,
+    onChange,
+    disabled = false,
+}: {
+    label: string;
+    options: { value: string; label: string }[];
+    value: string;
+    onChange: (value: string) => void;
+    disabled?: boolean;
+}): React.JSX.Element {
+    return (
+        <label className={"Dropdown" + (disabled ? " disabled" : "")}>
+            <span className="DropdownLabel">{label}</span>
+            <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+                {options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                        {o.label}
+                    </option>
+                ))}
+            </select>
+        </label>
+    );
 }
 
 function Sandbox(): React.JSX.Element {
@@ -324,90 +394,66 @@ function Game({ size, onNewGame }: { size: CubeSize; onNewGame: () => void }): R
             <div className="Toolbar">
                 <div className="ToolGroup">
                     <span className="ControlLabel">View</span>
-                    <button
-                        className={view === "slices" ? "active" : ""}
-                        onClick={() => setView("slices")}
-                    >
-                        Slices
-                    </button>
-                    <button
-                        className={view === "lattice" ? "active" : ""}
-                        onClick={() => setView("lattice")}
-                    >
-                        Lattice
-                    </button>
+                    <Segmented
+                        options={VIEW_MODES}
+                        value={view}
+                        onChange={(v) => setView(v as View3D)}
+                    />
                 </div>
-                <div className="ToolGroup">
-                    <span className="ControlLabel">Grid</span>
-                    {LINE_MODES.map(({ mode, label }) => (
-                        <button
-                            key={mode}
-                            className={lineMode === mode ? "active" : ""}
-                            disabled={view !== "lattice"}
-                            onClick={() => setLineMode(mode)}
-                        >
-                            {label}
-                        </button>
-                    ))}
-                </div>
+                <Dropdown
+                    label="Grid"
+                    options={LINE_MODES}
+                    value={lineMode}
+                    onChange={(v) => setLineMode(v as LineMode)}
+                    disabled={view !== "lattice"}
+                />
                 <div className="ToolGroup">
                     <button
-                        className={sectionCut ? "active" : ""}
+                        type="button"
+                        className={"Toggle" + (sectionCut ? " active" : "")}
                         disabled={view !== "lattice"}
                         onClick={() => setSectionCut((v) => !v)}
                     >
                         Section cut
                     </button>
                     <button
-                        className={showAllSlices ? "active" : ""}
+                        type="button"
+                        className={"Toggle" + (showAllSlices ? " active" : "")}
                         disabled={view !== "lattice"}
                         onClick={() => setShowAllSlices((v) => !v)}
                     >
                         All slices
                     </button>
                 </div>
-                <div className="ToolGroup">
-                    <span className="ControlLabel">Liberties</span>
-                    {LIB_MODES.map(({ mode, label }) => (
-                        <button
-                            key={mode}
-                            className={libMode === mode ? "active" : ""}
-                            onClick={() => setLibMode(mode)}
-                        >
-                            {label}
-                        </button>
-                    ))}
-                </div>
-                <div className="ToolGroup">
-                    <span className="ControlLabel">Place</span>
-                    {PLACE_MODES.map(({ mode, label }) => (
-                        <button
-                            key={mode}
-                            className={placeMode === mode ? "active" : ""}
-                            onClick={() => setPlaceMode(mode)}
-                        >
-                            {label}
-                        </button>
-                    ))}
-                </div>
+                <Dropdown
+                    label="Liberties"
+                    options={LIB_MODES}
+                    value={libMode}
+                    onChange={(v) => setLibMode(v as LibMode)}
+                />
+                <Dropdown
+                    label="Place"
+                    options={PLACE_MODES}
+                    value={placeMode}
+                    onChange={(v) => setPlaceMode(v as PlaceMode)}
+                />
                 <div className="ToolGroup ToolGroup--right">
-                    <span className="ControlLabel">Score</span>
-                    <button
-                        className={scoreMode === "estimate" ? "active" : ""}
-                        onClick={() => setScoreMode((m) => (m === "estimate" ? "off" : "estimate"))}
-                    >
-                        Estimate
-                    </button>
-                    <button
-                        className={scoreMode === "final" ? "active" : ""}
-                        onClick={() => setScoreMode((m) => (m === "final" ? "off" : "final"))}
-                    >
-                        Final
-                    </button>
+                    <Dropdown
+                        label="Score"
+                        options={SCORE_MODES}
+                        value={scoreMode}
+                        onChange={(v) => setScoreMode(v as ScoreMode)}
+                    />
                     <span className="ControlSeparator" />
-                    <button onClick={onPass}>Pass</button>
-                    <button onClick={onReset}>Reset</button>
-                    <button onClick={onNewGame}>New game</button>
+                    <button type="button" className="ToolAction" onClick={onPass}>
+                        Pass
+                    </button>
+                    <button type="button" className="ToolAction" onClick={onReset}>
+                        Reset
+                    </button>
+                    <button type="button" className="ToolAction" onClick={onNewGame}>
+                        New
+                    </button>
                 </div>
             </div>
 

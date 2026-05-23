@@ -91,20 +91,21 @@ html, body {
 .Toolbar {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.55rem;
     width: 100%;
-    flex-wrap: wrap;
-    background: #262626;
-    border: 1px solid #444;
-    border-radius: 10px;
-    padding: 0.6rem 0.9rem;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+    background: #232323;
+    border: 1px solid #3a3a3a;
+    border-radius: 12px;
+    padding: 0.55rem 0.7rem;
     box-sizing: border-box;
 }
 
 .ToolGroup {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.32rem;
 }
 
 .ToolGroup--right {
@@ -112,30 +113,195 @@ html, body {
 }
 
 .ControlLabel {
-    color: #888;
-    font-size: 0.85rem;
-    margin-right: 0.1rem;
+    color: #6f6f6f;
+    font-size: 0.62rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
 }
 
-.Toolbar button {
-    background: #1c1c1c;
-    color: #aaa;
-    border: 1px solid #555;
-    padding: 0.4rem 0.85rem;
+/* Segmented (mutually-exclusive) control */
+.Segmented {
+    display: inline-flex;
+    background: #1a1a1a;
+    border: 1px solid #454545;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.Segmented button {
+    background: transparent;
+    color: #b6b6b6;
+    border: none;
+    border-left: 1px solid #383838;
+    padding: 0.34rem 0.56rem;
     font: inherit;
+    font-size: 0.79rem;
+    line-height: 1.15;
     cursor: pointer;
-    border-radius: 5px;
+    transition:
+        background 0.12s,
+        color 0.12s;
 }
 
-.Toolbar button.active {
-    background: #aaa;
-    color: #1c1c1c;
-    border-color: #aaa;
+.Segmented button:first-child {
+    border-left: none;
 }
 
-.Toolbar button:disabled {
-    opacity: 0.35;
+.Segmented button:hover:not(:disabled):not(.active) {
+    background: #2c2c2c;
+    color: #e6e6e6;
+}
+
+.Segmented button.active {
+    background: #e7e7e7;
+    color: #1a1a1a;
+    font-weight: 600;
+}
+
+.Segmented button:disabled {
+    opacity: 0.3;
     cursor: default;
+}
+
+/* Labeled dropdown (native select) */
+.Dropdown {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: #1a1a1a;
+    border: 1px solid #454545;
+    border-radius: 8px;
+    padding: 0.32rem 0.45rem 0.32rem 0.6rem;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+
+.Dropdown:hover:not(.disabled) {
+    background: #2c2c2c;
+}
+
+.DropdownLabel {
+    color: #6f6f6f;
+    font-size: 0.62rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+}
+
+.Dropdown select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    color: #dadada;
+    border: none;
+    font: inherit;
+    font-size: 0.8rem;
+    line-height: 1.15;
+    padding: 0 1rem 0 0;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23999' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0 center;
+    background-size: 0.62rem;
+}
+
+.Dropdown select:focus {
+    outline: none;
+}
+
+.Dropdown select option {
+    background: #232323;
+    color: #dadada;
+}
+
+.Dropdown.disabled {
+    opacity: 0.35;
+}
+
+.Dropdown.disabled select {
+    cursor: default;
+}
+
+/* Standalone on/off toggle */
+.Toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.38rem;
+    background: #1a1a1a;
+    color: #b6b6b6;
+    border: 1px solid #454545;
+    border-radius: 8px;
+    padding: 0.34rem 0.58rem 0.34rem 0.5rem;
+    font: inherit;
+    font-size: 0.79rem;
+    line-height: 1.15;
+    cursor: pointer;
+    transition:
+        background 0.12s,
+        color 0.12s,
+        border-color 0.12s;
+}
+
+.Toggle::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #555;
+    transition:
+        background 0.12s,
+        box-shadow 0.12s;
+}
+
+.Toggle:hover:not(:disabled):not(.active) {
+    background: #2c2c2c;
+    color: #e6e6e6;
+}
+
+.Toggle.active {
+    background: #15323d;
+    border-color: #39d0ff;
+    color: #cdeefb;
+}
+
+.Toggle.active::before {
+    background: #39d0ff;
+    box-shadow: 0 0 5px #39d0ff;
+}
+
+.Toggle:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+/* Action buttons (Pass / Reset / New game) */
+.ToolAction {
+    background: transparent;
+    color: #b6b6b6;
+    border: 1px solid #454545;
+    border-radius: 8px;
+    padding: 0.34rem 0.62rem;
+    font: inherit;
+    font-size: 0.79rem;
+    line-height: 1.15;
+    cursor: pointer;
+    transition:
+        background 0.12s,
+        color 0.12s;
+}
+
+.ToolAction:hover {
+    background: #2c2c2c;
+    color: #e6e6e6;
+}
+
+.ControlSeparator {
+    width: 1px;
+    align-self: stretch;
+    min-height: 1.4rem;
+    background: #3f3f3f;
+    margin: 0 0.15rem;
 }
 
 .Board {
