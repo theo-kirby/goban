@@ -29,10 +29,11 @@ import { createLatticeApp, LatticeApp, LineMode } from "./lattice3d";
 const CUBE_SIZES = [3, 4, 5, 7, 9] as const;
 type CubeSize = (typeof CUBE_SIZES)[number];
 type View3D = "slices" | "lattice";
-type Phase = "setup" | "playing";
 type LibMode = "off" | "group" | "black" | "white";
 type PlaceMode = "alternate" | "black" | "white";
 type ScoreMode = "off" | "estimate" | "final";
+
+const SIZE_OPTIONS = CUBE_SIZES.map((n) => ({ value: String(n), label: `${n}³` }));
 
 const EMPTY_DEAD: Set<number> = new Set();
 
@@ -157,52 +158,24 @@ function Dropdown({
 }
 
 function Sandbox(): React.JSX.Element {
-    const [phase, setPhase] = React.useState<Phase>("setup");
     const [size, setSize] = React.useState<CubeSize>(5);
 
     return (
         <div className="Sandbox">
-            {phase === "setup" ? (
-                <StartScreen size={size} onPick={setSize} onStart={() => setPhase("playing")} />
-            ) : (
-                <Game key={size} size={size} onNewGame={() => setPhase("setup")} />
-            )}
+            <Game key={size} size={size} onChangeSize={setSize} />
         </div>
     );
 }
 
-function StartScreen({
+const SIDEBAR_STORAGE_KEY = "sandbox.sidebar";
+
+function Game({
     size,
-    onPick,
-    onStart,
+    onChangeSize,
 }: {
     size: CubeSize;
-    onPick: (n: CubeSize) => void;
-    onStart: () => void;
+    onChangeSize: (n: CubeSize) => void;
 }): React.JSX.Element {
-    return (
-        <div className="StartScreen">
-            <h1 className="StartTitle">3D Go</h1>
-            <p className="StartSubtitle">Select board size</p>
-            <div className="StartSizes">
-                {CUBE_SIZES.map((n) => (
-                    <button
-                        key={n}
-                        className={n === size ? "active" : ""}
-                        onClick={() => onPick(n)}
-                    >
-                        {n}³
-                    </button>
-                ))}
-            </div>
-            <button className="StartButton" onClick={onStart}>
-                Start Game
-            </button>
-        </div>
-    );
-}
-
-function Game({ size, onNewGame }: { size: CubeSize; onNewGame: () => void }): React.JSX.Element {
     const [view, setView] = React.useState<View3D>("lattice");
     const [state, setState] = React.useState(
         () => new BoardState3D({ width: size, height: size, depth: size }),
@@ -219,7 +192,20 @@ function Game({ size, onNewGame }: { size: CubeSize; onNewGame: () => void }): R
     const [scoreMode, setScoreMode] = React.useState<ScoreMode>("off");
     const [dead, setDead] = React.useState<Set<number>>(new Set());
     const [komi, setKomi] = React.useState(0);
+    const [sidebarOpen, setSidebarOpen] = React.useState<boolean>(() => {
+        if (typeof window === "undefined") {
+            return true;
+        }
+        return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) !== "0";
+    });
     const finalMode = scoreMode === "final";
+
+    React.useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+        window.localStorage.setItem(SIDEBAR_STORAGE_KEY, sidebarOpen ? "1" : "0");
+    }, [sidebarOpen]);
 
     React.useEffect(() => {
         setDead(new Set());
@@ -389,158 +375,336 @@ function Game({ size, onNewGame }: { size: CubeSize; onNewGame: () => void }): R
         setError(null);
     };
 
+    const hint =
+        scoreMode === "final"
+            ? "final scoring · click a stone to toggle it dead"
+            : scoreMode === "estimate"
+              ? "estimating · keep playing, score updates live"
+              : view === "lattice"
+                ? "drag to rotate · click to play · ↑/↓ move slice"
+                : "click any intersection to play";
+
     return (
         <div className="Game">
-            <div className="Toolbar">
-                <div className="ToolGroup">
-                    <span className="ControlLabel">View</span>
+            <AppHeader
+                size={size}
+                state={state}
+                onToggleSidebar={() => setSidebarOpen((v) => !v)}
+                onPass={onPass}
+                onReset={onReset}
+            />
+            <div className="AppShell">
+                <Sidebar
+                    open={sidebarOpen}
+                    size={size}
+                    onChangeSize={onChangeSize}
+                    view={view}
+                    setView={setView}
+                    lineMode={lineMode}
+                    setLineMode={setLineMode}
+                    sectionCut={sectionCut}
+                    setSectionCut={setSectionCut}
+                    showAllSlices={showAllSlices}
+                    setShowAllSlices={setShowAllSlices}
+                    placeMode={placeMode}
+                    setPlaceMode={setPlaceMode}
+                    libMode={libMode}
+                    setLibMode={setLibMode}
+                    scoreMode={scoreMode}
+                    setScoreMode={setScoreMode}
+                    komi={komi}
+                    setKomi={setKomi}
+                />
+                <div className="MainColumn">
+                    <div className="Board">
+                        {view === "slices" ? (
+                            <div className="Slices">
+                                {Array.from({ length: state.depth }, (_, z) => (
+                                    <Slice
+                                        key={z}
+                                        state={state}
+                                        z={z}
+                                        onPlay={onPoint}
+                                        libMode={libMode}
+                                        onHoverGroup={onHoverGroup}
+                                        highlight={highlightSet}
+                                        {...sliceScoreProps}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="LatticeLayout">
+                                <LatticeView
+                                    state={state}
+                                    onPlay={onPoint}
+                                    syncKey={tick}
+                                    lineMode={lineMode}
+                                    sectionCut={sectionCut}
+                                    sliceZ={sliceZ}
+                                    highlights={highlights}
+                                    onHoverGroup={onHoverGroup}
+                                    scoring={finalMode}
+                                    dead={finalMode ? dead : EMPTY_DEAD}
+                                    blackTerritory={score?.blackTerritory ?? []}
+                                    whiteTerritory={score?.whiteTerritory ?? []}
+                                />
+                                <div className="SidePanel">
+                                    <div className="SidePanelHeader">
+                                        <button
+                                            onClick={() => setSliceZ((z) => Math.max(0, z - 1))}
+                                            disabled={sliceZ === 0}
+                                        >
+                                            ▼
+                                        </button>
+                                        <span>z = {sliceZ}</span>
+                                        <button
+                                            onClick={() =>
+                                                setSliceZ((z) => Math.min(state.depth - 1, z + 1))
+                                            }
+                                            disabled={sliceZ === state.depth - 1}
+                                        >
+                                            ▲
+                                        </button>
+                                    </div>
+                                    <div className="SlicePanelArea">
+                                        <div
+                                            className="SliceGrid"
+                                            style={{
+                                                gridTemplateColumns: `repeat(${panelLayout.cols}, max-content)`,
+                                                gap: `${PANEL_GAP}px`,
+                                            }}
+                                        >
+                                            {panelZs.map((z) => (
+                                                <Slice
+                                                    key={z}
+                                                    state={state}
+                                                    z={z}
+                                                    onPlay={onPoint}
+                                                    cell={panelLayout.cell}
+                                                    current={z === sliceZ}
+                                                    libMode={libMode}
+                                                    onHoverGroup={onHoverGroup}
+                                                    highlight={highlightSet}
+                                                    {...sliceScoreProps}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {score && (
+                        <div className="ScorePanel">
+                            <span className="ScoreMode">
+                                {scoreMode === "estimate" ? "Estimate" : "Final"}
+                            </span>
+                            <span className="ScoreCol">
+                                Black — stones {score.black.stones}, territory{" "}
+                                {score.black.territory}, area {score.black.area}
+                            </span>
+                            <span className="ScoreCol">
+                                White — stones {score.white.stones}, territory{" "}
+                                {score.white.territory}, area {score.white.area.toFixed(1)}
+                            </span>
+                            <strong className="ScoreResult">
+                                {score.winner === "draw"
+                                    ? "Draw"
+                                    : `${score.winner === "black" ? "Black" : "White"} +${score.margin.toFixed(1)}`}
+                            </strong>
+                        </div>
+                    )}
+
+                    <div className="Status">
+                        <span className="Hint">{hint}</span>
+                        {error && <span className="Error">{error}</span>}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function AppHeader({
+    size,
+    state,
+    onToggleSidebar,
+    onPass,
+    onReset,
+}: {
+    size: CubeSize;
+    state: BoardState3D;
+    onToggleSidebar: () => void;
+    onPass: () => void;
+    onReset: () => void;
+}): React.JSX.Element {
+    const toPlayBlack = state.player === JGOFNumericPlayerColor.BLACK;
+    return (
+        <header className="AppHeader">
+            <button
+                type="button"
+                className="SidebarToggle"
+                onClick={onToggleSidebar}
+                aria-label="Toggle sidebar"
+                title="Toggle sidebar"
+            >
+                ☰
+            </button>
+            <div className="AppHeader__brand">
+                <span className="Mark">◆</span>
+                <span>3D Go</span>
+            </div>
+            <div className="AppHeader__status">
+                <span className="AppHeader__stat AppHeader__stat--size">{size}³</span>
+                <span className="AppHeader__stat AppHeader__stat--move">
+                    Move {state.move_number}
+                </span>
+                <span className="AppHeader__stat AppHeader__stat--turn">
+                    <span className={"Dot " + (toPlayBlack ? "black" : "white")} />
+                    <strong>{toPlayBlack ? "Black" : "White"}</strong>
+                </span>
+                <span className="AppHeader__stat AppHeader__stat--prisoners">
+                    B:{state.black_prisoners} W:{state.white_prisoners}
+                </span>
+            </div>
+            <div className="AppHeader__actions">
+                <button type="button" className="ToolAction" onClick={onPass}>
+                    Pass
+                </button>
+                <button type="button" className="ToolAction" onClick={onReset}>
+                    Reset
+                </button>
+            </div>
+        </header>
+    );
+}
+
+function Sidebar({
+    open,
+    size,
+    onChangeSize,
+    view,
+    setView,
+    lineMode,
+    setLineMode,
+    sectionCut,
+    setSectionCut,
+    showAllSlices,
+    setShowAllSlices,
+    placeMode,
+    setPlaceMode,
+    libMode,
+    setLibMode,
+    scoreMode,
+    setScoreMode,
+    komi,
+    setKomi,
+}: {
+    open: boolean;
+    size: CubeSize;
+    onChangeSize: (n: CubeSize) => void;
+    view: View3D;
+    setView: (v: View3D) => void;
+    lineMode: LineMode;
+    setLineMode: (v: LineMode) => void;
+    sectionCut: boolean;
+    setSectionCut: (fn: (v: boolean) => boolean) => void;
+    showAllSlices: boolean;
+    setShowAllSlices: (fn: (v: boolean) => boolean) => void;
+    placeMode: PlaceMode;
+    setPlaceMode: (v: PlaceMode) => void;
+    libMode: LibMode;
+    setLibMode: (v: LibMode) => void;
+    scoreMode: ScoreMode;
+    setScoreMode: (v: ScoreMode) => void;
+    komi: number;
+    setKomi: (n: number) => void;
+}): React.JSX.Element {
+    const latticeOnly = view !== "lattice";
+    return (
+        <aside className={"Sidebar" + (open ? "" : " Sidebar--collapsed")} aria-hidden={!open}>
+            <div className="SidebarSection">
+                <div className="SidebarSectionTitle">Board</div>
+                <div className="SidebarRow">
+                    <Segmented
+                        options={SIZE_OPTIONS}
+                        value={String(size)}
+                        onChange={(v) => onChangeSize(Number(v) as CubeSize)}
+                    />
+                </div>
+            </div>
+            <div className="SidebarSection">
+                <div className="SidebarSectionTitle">Display</div>
+                <div className="SidebarRow">
                     <Segmented
                         options={VIEW_MODES}
                         value={view}
                         onChange={(v) => setView(v as View3D)}
                     />
                 </div>
-                <Dropdown
-                    label="Grid"
-                    options={LINE_MODES}
-                    value={lineMode}
-                    onChange={(v) => setLineMode(v as LineMode)}
-                    disabled={view !== "lattice"}
-                />
-                <div className="ToolGroup">
+                <div className="SidebarRow">
+                    <Dropdown
+                        label="Grid"
+                        options={LINE_MODES}
+                        value={lineMode}
+                        onChange={(v) => setLineMode(v as LineMode)}
+                        disabled={latticeOnly}
+                    />
+                </div>
+                <div className="SidebarRow">
                     <button
                         type="button"
                         className={"Toggle" + (sectionCut ? " active" : "")}
-                        disabled={view !== "lattice"}
+                        disabled={latticeOnly}
                         onClick={() => setSectionCut((v) => !v)}
                     >
                         Section cut
                     </button>
+                </div>
+                <div className="SidebarRow">
                     <button
                         type="button"
                         className={"Toggle" + (showAllSlices ? " active" : "")}
-                        disabled={view !== "lattice"}
+                        disabled={latticeOnly}
                         onClick={() => setShowAllSlices((v) => !v)}
                     >
                         All slices
                     </button>
                 </div>
-                <Dropdown
-                    label="Liberties"
-                    options={LIB_MODES}
-                    value={libMode}
-                    onChange={(v) => setLibMode(v as LibMode)}
-                />
-                <Dropdown
-                    label="Place"
-                    options={PLACE_MODES}
-                    value={placeMode}
-                    onChange={(v) => setPlaceMode(v as PlaceMode)}
-                />
-                <div className="ToolGroup ToolGroup--right">
+            </div>
+
+            <div className="SidebarSection">
+                <div className="SidebarSectionTitle">Stones</div>
+                <div className="SidebarRow">
                     <Dropdown
-                        label="Score"
+                        label="Place"
+                        options={PLACE_MODES}
+                        value={placeMode}
+                        onChange={(v) => setPlaceMode(v as PlaceMode)}
+                    />
+                </div>
+                <div className="SidebarRow">
+                    <Dropdown
+                        label="Liberties"
+                        options={LIB_MODES}
+                        value={libMode}
+                        onChange={(v) => setLibMode(v as LibMode)}
+                    />
+                </div>
+            </div>
+
+            <div className="SidebarSection">
+                <div className="SidebarSectionTitle">Scoring</div>
+                <div className="SidebarRow">
+                    <Dropdown
+                        label="Mode"
                         options={SCORE_MODES}
                         value={scoreMode}
                         onChange={(v) => setScoreMode(v as ScoreMode)}
                     />
-                    <span className="ControlSeparator" />
-                    <button type="button" className="ToolAction" onClick={onPass}>
-                        Pass
-                    </button>
-                    <button type="button" className="ToolAction" onClick={onReset}>
-                        Reset
-                    </button>
-                    <button type="button" className="ToolAction" onClick={onNewGame}>
-                        New
-                    </button>
                 </div>
-            </div>
-
-            <div className="Board">
-                {view === "slices" ? (
-                    <div className="Slices">
-                        {Array.from({ length: state.depth }, (_, z) => (
-                            <Slice
-                                key={z}
-                                state={state}
-                                z={z}
-                                onPlay={onPoint}
-                                libMode={libMode}
-                                onHoverGroup={onHoverGroup}
-                                highlight={highlightSet}
-                                {...sliceScoreProps}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <div className="LatticeLayout">
-                        <LatticeView
-                            state={state}
-                            onPlay={onPoint}
-                            syncKey={tick}
-                            lineMode={lineMode}
-                            sectionCut={sectionCut}
-                            sliceZ={sliceZ}
-                            highlights={highlights}
-                            onHoverGroup={onHoverGroup}
-                            scoring={finalMode}
-                            dead={finalMode ? dead : EMPTY_DEAD}
-                            blackTerritory={score?.blackTerritory ?? []}
-                            whiteTerritory={score?.whiteTerritory ?? []}
-                        />
-                        <div className="SidePanel">
-                            <div className="SidePanelHeader">
-                                <button
-                                    onClick={() => setSliceZ((z) => Math.max(0, z - 1))}
-                                    disabled={sliceZ === 0}
-                                >
-                                    ▼
-                                </button>
-                                <span>z = {sliceZ}</span>
-                                <button
-                                    onClick={() =>
-                                        setSliceZ((z) => Math.min(state.depth - 1, z + 1))
-                                    }
-                                    disabled={sliceZ === state.depth - 1}
-                                >
-                                    ▲
-                                </button>
-                            </div>
-                            <div className="SlicePanelArea">
-                                <div
-                                    className="SliceGrid"
-                                    style={{
-                                        gridTemplateColumns: `repeat(${panelLayout.cols}, max-content)`,
-                                        gap: `${PANEL_GAP}px`,
-                                    }}
-                                >
-                                    {panelZs.map((z) => (
-                                        <Slice
-                                            key={z}
-                                            state={state}
-                                            z={z}
-                                            onPlay={onPoint}
-                                            cell={panelLayout.cell}
-                                            current={z === sliceZ}
-                                            libMode={libMode}
-                                            onHoverGroup={onHoverGroup}
-                                            highlight={highlightSet}
-                                            {...sliceScoreProps}
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {score && (
-                <div className="ScorePanel">
-                    <span className="ScoreMode">
-                        {scoreMode === "estimate" ? "Estimate" : "Final"}
-                    </span>
+                <div className="SidebarRow">
                     <label className="KomiInput">
                         Komi
                         <input
@@ -550,44 +714,9 @@ function Game({ size, onNewGame }: { size: CubeSize; onNewGame: () => void }): R
                             onChange={(e) => setKomi(parseFloat(e.target.value) || 0)}
                         />
                     </label>
-                    <span className="ScoreCol">
-                        Black — stones {score.black.stones}, territory {score.black.territory}, area{" "}
-                        {score.black.area}
-                    </span>
-                    <span className="ScoreCol">
-                        White — stones {score.white.stones}, territory {score.white.territory}, area{" "}
-                        {score.white.area.toFixed(1)}
-                    </span>
-                    <strong className="ScoreResult">
-                        {score.winner === "draw"
-                            ? "Draw"
-                            : `${score.winner === "black" ? "Black" : "White"} +${score.margin.toFixed(1)}`}
-                    </strong>
                 </div>
-            )}
-
-            <div className="Status">
-                <span>
-                    {size}³ · Move {state.move_number} · To play:{" "}
-                    <strong>
-                        {state.player === JGOFNumericPlayerColor.BLACK ? "Black" : "White"}
-                    </strong>
-                </span>
-                <span>
-                    Prisoners — B:{state.black_prisoners} W:{state.white_prisoners}
-                </span>
-                <span className="Hint">
-                    {scoreMode === "final"
-                        ? "final scoring · click a stone to toggle it dead"
-                        : scoreMode === "estimate"
-                          ? "estimating · keep playing, score updates live"
-                          : view === "lattice"
-                            ? "drag to rotate · click to play · ↑/↓ move slice"
-                            : "click any intersection to play"}
-                </span>
-                {error && <span className="Error">{error}</span>}
             </div>
-        </div>
+        </aside>
     );
 }
 
