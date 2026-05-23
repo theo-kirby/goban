@@ -1,0 +1,25 @@
+server {
+    listen ${PORT};
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+    gzip_min_length 1024;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location = /index.html {
+        add_header Cache-Control "no-cache, must-revalidate";
+    }
+
+    location ~* \.(?:js|css|svg|png|jpg|jpeg|gif|ico|woff2?|map)$ {
+        access_log off;
+        add_header Cache-Control "public, max-age=3600";
+        try_files $uri =404;
+    }
+}
