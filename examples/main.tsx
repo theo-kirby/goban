@@ -24,7 +24,7 @@ import {
     estimateScoreInfluence,
     ScoreResult,
 } from "../src";
-import { createLatticeApp, LatticeApp, LineMode } from "./lattice3d";
+import { createLatticeApp, LatticeApp, LineMode, Theme } from "./lattice3d";
 
 const CUBE_SIZES = [3, 4, 5, 7, 9] as const;
 type CubeSize = (typeof CUBE_SIZES)[number];
@@ -250,12 +250,38 @@ function BrandIcon(): React.JSX.Element {
     );
 }
 
+const THEME_STORAGE_KEY = "sandbox.theme";
+
+/* Stored preference wins; otherwise follow the OS setting. */
+function initialTheme(): Theme {
+    if (typeof window === "undefined") {
+        return "dark";
+    }
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === "light" || stored === "dark") {
+        return stored;
+    }
+    return window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
 function Sandbox(): React.JSX.Element {
     const [size, setSize] = React.useState<CubeSize>(4);
+    const [theme, setTheme] = React.useState<Theme>(initialTheme);
+
+    React.useEffect(() => {
+        document.documentElement.dataset.theme = theme;
+        window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    }, [theme]);
 
     return (
         <div className="Sandbox">
-            <Game key={size} size={size} onChangeSize={setSize} />
+            <Game
+                key={size}
+                size={size}
+                onChangeSize={setSize}
+                theme={theme}
+                onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+            />
         </div>
     );
 }
@@ -265,9 +291,13 @@ const SIDEBAR_STORAGE_KEY = "sandbox.sidebar";
 function Game({
     size,
     onChangeSize,
+    theme,
+    onToggleTheme,
 }: {
     size: CubeSize;
     onChangeSize: (n: CubeSize) => void;
+    theme: Theme;
+    onToggleTheme: () => void;
 }): React.JSX.Element {
     const [view, setView] = React.useState<View3D>("lattice");
     const [state, setState] = React.useState(
@@ -540,6 +570,8 @@ function Game({
                 onToggleSidebar={() => setSidebarOpen((v) => !v)}
                 onPass={onPass}
                 onReset={onReset}
+                theme={theme}
+                onToggleTheme={onToggleTheme}
             />
             <div className="AppShell">
                 <Sidebar
@@ -586,6 +618,7 @@ function Game({
                                 <LatticeView
                                     state={state}
                                     onPlay={onPoint}
+                                    theme={theme}
                                     syncKey={tick}
                                     lineMode={lineMode}
                                     sectionCut={sectionCut}
@@ -694,12 +727,16 @@ function AppHeader({
     onToggleSidebar,
     onPass,
     onReset,
+    theme,
+    onToggleTheme,
 }: {
     size: CubeSize;
     state: BoardState3D;
     onToggleSidebar: () => void;
     onPass: () => void;
     onReset: () => void;
+    theme: Theme;
+    onToggleTheme: () => void;
 }): React.JSX.Element {
     const toPlayBlack = state.player === JGOFNumericPlayerColor.BLACK;
     return (
@@ -731,6 +768,15 @@ function AppHeader({
                 </span>
             </div>
             <div className="AppHeader__actions">
+                <button
+                    type="button"
+                    className="ThemeToggle"
+                    onClick={onToggleTheme}
+                    aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                    title={theme === "dark" ? "Light mode" : "Dark mode"}
+                >
+                    {theme === "dark" ? "☀" : "☾"}
+                </button>
                 <button type="button" className="ToolAction" onClick={onPass}>
                     Pass
                 </button>
@@ -908,6 +954,7 @@ function Sidebar({
 function LatticeView({
     state,
     onPlay,
+    theme,
     syncKey,
     lineMode,
     sectionCut,
@@ -921,6 +968,7 @@ function LatticeView({
 }: {
     state: BoardState3D;
     onPlay: (x: number, y: number, z: number) => void;
+    theme: Theme;
     syncKey: number;
     lineMode: LineMode;
     sectionCut: boolean;
@@ -938,6 +986,8 @@ function LatticeView({
     on_play.current = onPlay;
     const on_hover_group = React.useRef(onHoverGroup);
     on_hover_group.current = onHoverGroup;
+    const theme_ref = React.useRef(theme);
+    theme_ref.current = theme;
 
     React.useEffect(() => {
         if (!mount.current) {
@@ -948,6 +998,7 @@ function LatticeView({
             state,
             (x, y, z) => on_play.current(x, y, z),
             (pos) => on_hover_group.current(pos),
+            theme_ref.current,
         );
         app.current = created;
         return () => {
@@ -987,6 +1038,10 @@ function LatticeView({
     React.useEffect(() => {
         app.current?.setTerritory(blackTerritory, whiteTerritory);
     }, [blackTerritory, whiteTerritory, state]);
+
+    React.useEffect(() => {
+        app.current?.setTheme(theme);
+    }, [theme, state]);
 
     return <div ref={mount} className="LatticeMount" />;
 }
@@ -1073,9 +1128,9 @@ function Slice({
                         cx={cx(x)}
                         cy={cy(y)}
                         r={CELL * 0.24}
-                        fill="#39d0ff"
+                        fill="var(--accent)"
                         opacity={0.85}
-                        stroke="#06485e"
+                        stroke="var(--accent-ink)"
                         strokeWidth={1}
                         pointerEvents="none"
                     />,
@@ -1146,7 +1201,7 @@ function Slice({
                 y1={cy(y)}
                 x2={cx(W - 1)}
                 y2={cy(y)}
-                stroke="#1a1208"
+                stroke="var(--board-line)"
                 strokeWidth={1}
             />,
         );
@@ -1159,7 +1214,7 @@ function Slice({
                 y1={cy(0)}
                 x2={cx(x)}
                 y2={cy(H - 1)}
-                stroke="#1a1208"
+                stroke="var(--board-line)"
                 strokeWidth={1}
             />,
         );

@@ -7,6 +7,27 @@
             src="https://online-go.com/OGSScoreEstimator/OGSScoreEstimator-0.7.0.asm.js"
             id="ogs_score_estimator_script"
         ></script>
+        <script>
+            /* Apply the stored (or OS) theme before first paint, so the page
+             * never flashes the wrong palette. Mirrors initialTheme() in
+             * examples/main.tsx. */
+            (function () {
+                var t = null;
+                try {
+                    t = window.localStorage.getItem("sandbox.theme");
+                } catch (e) {
+                    /* storage unavailable */
+                }
+                if (t !== "light" && t !== "dark") {
+                    t =
+                        window.matchMedia &&
+                        window.matchMedia("(prefers-color-scheme: light)").matches
+                            ? "light"
+                            : "dark";
+                }
+                document.documentElement.setAttribute("data-theme", t);
+            })();
+        </script>
         <link rel="stylesheet" href="/examples.css" />
     </head>
     <body>

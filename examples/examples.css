@@ -1,9 +1,123 @@
-html, body {
+/* ---- Theme tokens ----
+ * Dark is the default; `data-theme="light"` on <html> flips the palette.
+ * Every color below is referenced through a var so a theme swap is one place. */
+
+:root,
+:root[data-theme="dark"] {
+    --bg: #333;
+    --fg: #aaa;
+
+    --panel-bg: #232323;
+    --panel-border: #3a3a3a;
+    --panel-divider: #333;
+
+    --control-bg: #1a1a1a;
+    --control-border: #454545;
+    --control-fg: #b6b6b6;
+    --control-hover-bg: #2c2c2c;
+    --control-hover-fg: #e6e6e6;
+
+    --text-strong: #eaeaea;
+    --text-secondary: #ccc;
+    --text-muted: #888;
+    --text-faint: #6f6f6f;
+
+    --accent: #39d0ff;
+    --accent-ink: #06485e;
+    --accent-soft-bg: #15323d;
+    --accent-soft-fg: #cdeefb;
+    --toggle-dot: #555;
+
+    --seg-active-bg: #e7e7e7;
+    --seg-active-fg: #1a1a1a;
+
+    --dialog-bg: #262626;
+    --dialog-border: #444;
+    --dialog-fg: #d8d8d8;
+    --dialog-title: #eee;
+    --dialog-message: #b0b0b0;
+    --backdrop: rgba(0, 0, 0, 0.55);
+    --dialog-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+
+    --error: #e57373;
+    --score-result: #fff;
+
+    --dot-black-bg: #111;
+    --dot-black-border: #000;
+    --dot-white-bg: #fafafa;
+    --dot-white-border: #888;
+    --dot-border: #555;
+
+    --board-wood: #dcb35c;
+    --board-line: #1a1208;
+
+    --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23999' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+:root[data-theme="light"] {
+    --bg: #eceae5;
+    --fg: #4d4a44;
+
+    --panel-bg: #fdfcfa;
+    --panel-border: #dcd7cd;
+    --panel-divider: #e4dfd6;
+
+    --control-bg: #f4f2ed;
+    --control-border: #cdc7bb;
+    --control-fg: #55524b;
+    --control-hover-bg: #e6e2d9;
+    --control-hover-fg: #23211d;
+
+    --text-strong: #23211d;
+    --text-secondary: #4d4a44;
+    --text-muted: #77726a;
+    --text-faint: #8d877d;
+
+    --accent: #0b87b8;
+    --accent-ink: #05455e;
+    --accent-soft-bg: #dff3fb;
+    --accent-soft-fg: #0a4d68;
+    --toggle-dot: #b9b3a8;
+
+    --seg-active-bg: #3a372f;
+    --seg-active-fg: #fbfaf7;
+
+    --dialog-bg: #fdfcfa;
+    --dialog-border: #d7d2c8;
+    --dialog-fg: #3c3a35;
+    --dialog-title: #23211d;
+    --dialog-message: #6b6760;
+    --backdrop: rgba(40, 36, 28, 0.35);
+    --dialog-shadow: 0 14px 40px rgba(60, 54, 40, 0.22);
+
+    --error: #c0392b;
+    --score-result: #23211d;
+
+    --dot-black-bg: #111;
+    --dot-black-border: #000;
+    --dot-white-bg: #fff;
+    --dot-white-border: #a09a8e;
+    --dot-border: #b5afa3;
+
+    --board-wood: #e8c377;
+    --board-line: #4a3413;
+
+    --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23777' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+html,
+body {
     margin: 0;
-    background-color: #333;
-    color: #aaa;
+    background-color: var(--bg);
+    color: var(--fg);
     min-height: 100%;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    color-scheme: dark;
+}
+
+:root[data-theme="light"],
+:root[data-theme="light"] body {
+    color-scheme: light;
 }
 
 .Sandbox {
@@ -37,8 +151,8 @@ html, body {
     gap: 0.75rem;
     min-height: 48px;
     padding: 0.4rem 0.75rem;
-    background: #232323;
-    border: 1px solid #3a3a3a;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
     border-radius: 12px;
     box-sizing: border-box;
     flex-wrap: wrap;
@@ -48,7 +162,7 @@ html, body {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    color: #eaeaea;
+    color: var(--text-strong);
     font-size: 0.95rem;
     font-weight: 600;
     letter-spacing: 0.04em;
@@ -68,7 +182,7 @@ html, body {
     flex: 1 1 auto;
     min-width: 0;
     margin: 0 auto;
-    color: #b6b6b6;
+    color: var(--control-fg);
     font-size: 0.82rem;
 }
 
@@ -85,21 +199,21 @@ html, body {
     border-radius: 50%;
     margin-right: 0.3rem;
     vertical-align: middle;
-    border: 1px solid #555;
+    border: 1px solid var(--dot-border);
 }
 
 .AppHeader__status .Dot.black {
-    background: #111;
-    border-color: #000;
+    background: var(--dot-black-bg);
+    border-color: var(--dot-black-border);
 }
 
 .AppHeader__status .Dot.white {
-    background: #fafafa;
-    border-color: #888;
+    background: var(--dot-white-bg);
+    border-color: var(--dot-white-border);
 }
 
 .AppHeader__status strong {
-    color: #eaeaea;
+    color: var(--text-strong);
     font-weight: 600;
 }
 
@@ -111,10 +225,11 @@ html, body {
     margin-left: auto;
 }
 
-.SidebarToggle {
+.SidebarToggle,
+.ThemeToggle {
     background: transparent;
-    color: #b6b6b6;
-    border: 1px solid #454545;
+    color: var(--control-fg);
+    border: 1px solid var(--control-border);
     border-radius: 8px;
     width: 32px;
     height: 32px;
@@ -129,9 +244,10 @@ html, body {
         color 0.12s;
 }
 
-.SidebarToggle:hover {
-    background: #2c2c2c;
-    color: #e6e6e6;
+.SidebarToggle:hover,
+.ThemeToggle:hover {
+    background: var(--control-hover-bg);
+    color: var(--control-hover-fg);
 }
 
 /* ---- App shell + sidebar ---- */
@@ -150,8 +266,8 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 0.8rem;
-    background: #232323;
-    border: 1px solid #3a3a3a;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
     border-radius: 12px;
     padding: 0.8rem;
     box-sizing: border-box;
@@ -182,12 +298,12 @@ html, body {
 }
 
 .SidebarSection + .SidebarSection {
-    border-top: 1px solid #333;
+    border-top: 1px solid var(--panel-divider);
     padding-top: 0.75rem;
 }
 
 .SidebarSectionTitle {
-    color: #6f6f6f;
+    color: var(--text-faint);
     font-size: 0.62rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -223,7 +339,7 @@ html, body {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    color: #888;
+    color: var(--text-muted);
     font-size: 0.78rem;
     width: 100%;
 }
@@ -231,9 +347,9 @@ html, body {
 .SidebarRow .KomiInput input {
     flex: 1;
     width: 100%;
-    background: #1a1a1a;
-    color: #dadada;
-    border: 1px solid #454545;
+    background: var(--control-bg);
+    color: var(--text-secondary);
+    border: 1px solid var(--control-border);
     border-radius: 6px;
     padding: 0.3rem 0.45rem;
     font: inherit;
@@ -272,17 +388,17 @@ html, body {
 /* Segmented (mutually-exclusive) control */
 .Segmented {
     display: inline-flex;
-    background: #1a1a1a;
-    border: 1px solid #454545;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
     border-radius: 8px;
     overflow: hidden;
 }
 
 .Segmented button {
     background: transparent;
-    color: #b6b6b6;
+    color: var(--control-fg);
     border: none;
-    border-left: 1px solid #383838;
+    border-left: 1px solid var(--control-border);
     padding: 0.34rem 0.56rem;
     font: inherit;
     font-size: 0.79rem;
@@ -298,13 +414,13 @@ html, body {
 }
 
 .Segmented button:hover:not(:disabled):not(.active) {
-    background: #2c2c2c;
-    color: #e6e6e6;
+    background: var(--control-hover-bg);
+    color: var(--control-hover-fg);
 }
 
 .Segmented button.active {
-    background: #e7e7e7;
-    color: #1a1a1a;
+    background: var(--seg-active-bg);
+    color: var(--seg-active-fg);
     font-weight: 600;
 }
 
@@ -318,8 +434,8 @@ html, body {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    background: #1a1a1a;
-    border: 1px solid #454545;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
     border-radius: 8px;
     padding: 0.32rem 0.45rem 0.32rem 0.6rem;
     cursor: pointer;
@@ -327,11 +443,11 @@ html, body {
 }
 
 .Dropdown:hover:not(.disabled) {
-    background: #2c2c2c;
+    background: var(--control-hover-bg);
 }
 
 .DropdownLabel {
-    color: #6f6f6f;
+    color: var(--text-faint);
     font-size: 0.62rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -342,14 +458,14 @@ html, body {
     appearance: none;
     -webkit-appearance: none;
     background: transparent;
-    color: #dadada;
+    color: var(--text-secondary);
     border: none;
     font: inherit;
     font-size: 0.8rem;
     line-height: 1.15;
     padding: 0 1rem 0 0;
     cursor: pointer;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23999' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-image: var(--select-arrow);
     background-repeat: no-repeat;
     background-position: right 0 center;
     background-size: 0.62rem;
@@ -360,8 +476,8 @@ html, body {
 }
 
 .Dropdown select option {
-    background: #232323;
-    color: #dadada;
+    background: var(--panel-bg);
+    color: var(--text-secondary);
 }
 
 .Dropdown.disabled {
@@ -377,9 +493,9 @@ html, body {
     display: inline-flex;
     align-items: center;
     gap: 0.38rem;
-    background: #1a1a1a;
-    color: #b6b6b6;
-    border: 1px solid #454545;
+    background: var(--control-bg);
+    color: var(--control-fg);
+    border: 1px solid var(--control-border);
     border-radius: 8px;
     padding: 0.34rem 0.58rem 0.34rem 0.5rem;
     font: inherit;
@@ -397,26 +513,26 @@ html, body {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #555;
+    background: var(--toggle-dot);
     transition:
         background 0.12s,
         box-shadow 0.12s;
 }
 
 .Toggle:hover:not(:disabled):not(.active) {
-    background: #2c2c2c;
-    color: #e6e6e6;
+    background: var(--control-hover-bg);
+    color: var(--control-hover-fg);
 }
 
 .Toggle.active {
-    background: #15323d;
-    border-color: #39d0ff;
-    color: #cdeefb;
+    background: var(--accent-soft-bg);
+    border-color: var(--accent);
+    color: var(--accent-soft-fg);
 }
 
 .Toggle.active::before {
-    background: #39d0ff;
-    box-shadow: 0 0 5px #39d0ff;
+    background: var(--accent);
+    box-shadow: 0 0 5px var(--accent);
 }
 
 .Toggle:disabled {
@@ -427,8 +543,8 @@ html, body {
 /* Action buttons (Pass / Reset / dialog actions) */
 .ToolAction {
     background: transparent;
-    color: #b6b6b6;
-    border: 1px solid #454545;
+    color: var(--control-fg);
+    border: 1px solid var(--control-border);
     border-radius: 8px;
     padding: 0.34rem 0.62rem;
     font: inherit;
@@ -441,8 +557,8 @@ html, body {
 }
 
 .ToolAction:hover {
-    background: #2c2c2c;
-    color: #e6e6e6;
+    background: var(--control-hover-bg);
+    color: var(--control-hover-fg);
 }
 
 .ToolAction.Wide {
@@ -477,12 +593,12 @@ html, body {
 
 .SliceLabel {
     font-size: 0.75rem;
-    color: #888;
+    color: var(--text-muted);
     letter-spacing: 0.05em;
 }
 
 .SliceSvg {
-    background: #dcb35c;
+    background: var(--board-wood);
     border-radius: 6px;
     display: block;
 }
@@ -505,11 +621,11 @@ html, body {
 }
 
 .Slice.current .SliceSvg {
-    box-shadow: 0 0 0 2px #39d0ff;
+    box-shadow: 0 0 0 2px var(--accent);
 }
 
 .Slice.current .SliceLabel {
-    color: #39d0ff;
+    color: var(--accent);
 }
 
 /* ---- Lattice view ---- */
@@ -546,14 +662,14 @@ html, body {
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    color: #ccc;
+    color: var(--text-secondary);
     font-size: 0.85rem;
 }
 
 .SidePanelHeader button {
-    background: #1c1c1c;
-    color: #aaa;
-    border: 1px solid #555;
+    background: var(--control-bg);
+    color: var(--control-fg);
+    border: 1px solid var(--control-border);
     width: 1.9rem;
     height: 1.9rem;
     font: inherit;
@@ -573,18 +689,18 @@ html, body {
     display: flex;
     gap: 1.5rem;
     align-items: center;
-    color: #ccc;
+    color: var(--text-secondary);
     font-size: 0.9rem;
     flex-wrap: wrap;
 }
 
 .Status .Hint {
-    color: #777;
+    color: var(--text-muted);
     font-size: 0.8rem;
 }
 
 .Status .Error {
-    color: #e57373;
+    color: var(--error);
     font-style: italic;
 }
 
@@ -594,16 +710,16 @@ html, body {
     gap: 1.25rem;
     flex-wrap: wrap;
     justify-content: center;
-    background: #262626;
-    border: 1px solid #444;
+    background: var(--dialog-bg);
+    border: 1px solid var(--dialog-border);
     border-radius: 10px;
     padding: 0.6rem 0.9rem;
-    color: #ccc;
+    color: var(--text-secondary);
     font-size: 0.9rem;
 }
 
 .ScorePanel .ScoreMode {
-    color: #39d0ff;
+    color: var(--accent);
     font-weight: 600;
     text-transform: uppercase;
     font-size: 0.75rem;
@@ -611,7 +727,7 @@ html, body {
 }
 
 .ScorePanel .ScoreResult {
-    color: #fff;
+    color: var(--score-result);
     font-size: 1rem;
 }
 
@@ -621,7 +737,7 @@ html, body {
     position: fixed;
     inset: 0;
     z-index: 100;
-    background: rgba(0, 0, 0, 0.55);
+    background: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -631,27 +747,27 @@ html, body {
 }
 
 .Dialog {
-    background: #262626;
-    border: 1px solid #444;
+    background: var(--dialog-bg);
+    border: 1px solid var(--dialog-border);
     border-radius: 12px;
     padding: 1.25rem 1.25rem 1rem;
     width: min(420px, 100%);
     box-sizing: border-box;
-    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
-    color: #d8d8d8;
+    box-shadow: var(--dialog-shadow);
+    color: var(--dialog-fg);
     animation: dialog-pop 0.14s ease-out;
 }
 
 .DialogTitle {
     margin: 0 0 0.35rem;
     font-size: 1rem;
-    color: #eee;
+    color: var(--dialog-title);
     font-weight: 600;
 }
 
 .DialogMessage {
     margin: 0 0 1rem;
-    color: #b0b0b0;
+    color: var(--dialog-message);
     font-size: 0.85rem;
     line-height: 1.4;
 }

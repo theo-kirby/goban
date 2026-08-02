@@ -20,6 +20,8 @@ import { BoardState3D, Intersection3D, JGOFNumericPlayerColor } from "../src";
 
 export type LineMode = "all" | "horizontal" | "vertical" | "none";
 
+export type Theme = "dark" | "light";
+
 export interface LatticeApp {
     syncStones(): void;
     setSliceZ(z: number): void;
@@ -29,8 +31,45 @@ export interface LatticeApp {
     setDead(dead: Set<number>): void;
     setTerritory(black: Intersection3D[], white: Intersection3D[]): void;
     setScoring(enabled: boolean): void;
+    setTheme(theme: Theme): void;
     dispose(): void;
 }
+
+/* Scene colors per theme. Everything else (stones, preview) keeps its own
+ * black/white identity in both themes. */
+interface LatticeTheme {
+    background: number;
+    edge: number;
+    edge_opacity: number;
+    highlight: number;
+    territory_black: number;
+    territory_white: number;
+    ambient: number;
+    key_light: number;
+}
+
+const THEMES: Record<Theme, LatticeTheme> = {
+    dark: {
+        background: 0x1e1e1e,
+        edge: 0x666666,
+        edge_opacity: 0.45,
+        highlight: 0x39d0ff,
+        territory_black: 0x000000,
+        territory_white: 0xffffff,
+        ambient: 0.75,
+        key_light: 0.85,
+    },
+    light: {
+        background: 0xe6e2da,
+        edge: 0x6b6459,
+        edge_opacity: 0.55,
+        highlight: 0x0b87b8,
+        territory_black: 0x1a1a1a,
+        territory_white: 0xffffff,
+        ambient: 0.85,
+        key_light: 0.7,
+    },
+};
 
 interface NodeUserData {
     kind: "point" | "stone";
@@ -55,7 +94,9 @@ export function createLatticeApp(
     state: BoardState3D,
     onPlay: (x: number, y: number, z: number) => void,
     onHoverGroup: (pos: Intersection3D | null) => void,
+    theme: Theme = "dark",
 ): LatticeApp {
+    let palette = THEMES[theme];
     const W = state.width;
     const H = state.height;
     const D = state.depth;
@@ -66,7 +107,7 @@ export function createLatticeApp(
     const wz = (y: number): number => y - (H - 1) / 2;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1e1e1e);
+    scene.background = new THREE.Color(palette.background);
 
     let viewW = mount.clientWidth || 640;
     let viewH = mount.clientHeight || 560;
@@ -87,8 +128,9 @@ export function createLatticeApp(
     controls.dampingFactor = 0.1;
     controls.update();
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.75));
-    const key_light = new THREE.DirectionalLight(0xffffff, 0.85);
+    const ambient_light = new THREE.AmbientLight(0xffffff, palette.ambient);
+    scene.add(ambient_light);
+    const key_light = new THREE.DirectionalLight(0xffffff, palette.key_light);
     key_light.position.set(maxDim, maxDim * 2, maxDim * 1.5);
     scene.add(key_light);
 
@@ -120,9 +162,9 @@ export function createLatticeApp(
         }
     }
     const edge_mat = new THREE.LineBasicMaterial({
-        color: 0x666666,
+        color: palette.edge,
         transparent: true,
-        opacity: 0.45,
+        opacity: palette.edge_opacity,
         clippingPlanes: [clip_plane],
     });
     const edges_h_geom = new THREE.BufferGeometry();
@@ -191,13 +233,13 @@ export function createLatticeApp(
     scene.add(territory_group);
     const territory_geom = new THREE.BoxGeometry(0.3, 0.3, 0.3);
     const terr_black_mat = new THREE.MeshBasicMaterial({
-        color: 0x000000,
+        color: palette.territory_black,
         transparent: true,
         opacity: 0.55,
         clippingPlanes: [clip_plane],
     });
     const terr_white_mat = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
+        color: palette.territory_white,
         transparent: true,
         opacity: 0.55,
         clippingPlanes: [clip_plane],
@@ -221,7 +263,7 @@ export function createLatticeApp(
     scene.add(highlight_group);
     const highlight_geom = new THREE.SphereGeometry(0.2, 12, 12);
     const highlight_mat = new THREE.MeshBasicMaterial({
-        color: 0x39d0ff,
+        color: palette.highlight,
         transparent: true,
         opacity: 0.85,
         clippingPlanes: [clip_plane],
@@ -308,6 +350,18 @@ export function createLatticeApp(
         if (enabled) {
             preview_mesh.visible = false;
         }
+    }
+
+    function setTheme(next: Theme): void {
+        palette = THEMES[next];
+        (scene.background as THREE.Color).setHex(palette.background);
+        edge_mat.color.setHex(palette.edge);
+        edge_mat.opacity = palette.edge_opacity;
+        highlight_mat.color.setHex(palette.highlight);
+        terr_black_mat.color.setHex(palette.territory_black);
+        terr_white_mat.color.setHex(palette.territory_white);
+        ambient_light.intensity = palette.ambient;
+        key_light.intensity = palette.key_light;
     }
 
     function setTerritory(black: Intersection3D[], white: Intersection3D[]): void {
@@ -458,6 +512,7 @@ export function createLatticeApp(
         setDead,
         setTerritory,
         setScoring,
+        setTheme,
         dispose,
     };
 }
